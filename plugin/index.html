@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Nexus PLM</title>
+
+    <!--
+        The plugin's frame. ONLYOFFICE loads this page inside the editor, so there is no bundler
+        and no module loader: every file is a plain script tag, in dependency order, and each one
+        is UMD so the same file is what the tests require.
+
+        plugins.js is served BY the editor, not by this plugin, and it is what defines
+        window.Asc.plugin. It has to come first or Asc.plugin.init is registered on an object the
+        editor later replaces, and the plugin loads with nothing happening and nothing logged.
+    -->
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div id="nexus-plm-panel">
+        <h1 id="panel-title">Nexus PLM</h1>
+        <p id="panel-headline"></p>
+        <dl id="panel-rows"></dl>
+        <div id="panel-buttons"></div>
+    </div>
+
+    <script type="text/javascript" src="lib/editors.js"></script>
+    <script type="text/javascript" src="lib/panel.js"></script>
+    <script type="text/javascript" src="lib/client.js"></script>
+    <script type="text/javascript" src="ui.js"></script>
+    <script type="text/javascript" src="plugin.js"></script>
+</body>
+</html>

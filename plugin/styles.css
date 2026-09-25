@@ -1,0 +1,55 @@
+/*
+ * The panel's look. Deliberately small: ONLYOFFICE serves its own plugins.css, which already
+ * matches the editor's theme, so anything set here is only what that does not cover. Overriding
+ * the editor's colours would make the plugin the one thing on screen that ignores the user's
+ * theme.
+ */
+
+#nexus-plm-panel {
+    padding: 12px;
+    font-size: 12px;
+}
+
+#panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+}
+
+#panel-headline {
+    margin: 0 0 12px 0;
+}
+
+/* Label and value on one line each, the value able to wrap: a part number must never be cut. */
+#panel-rows {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    margin: 0 0 14px 0;
+}
+
+#panel-rows dt {
+    font-weight: 600;
+}
+
+#panel-rows dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+#panel-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.nexus-button {
+    width: 100%;
+    padding: 6px 8px;
+    cursor: pointer;
+}
+
+.nexus-button:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
