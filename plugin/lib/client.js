@@ -105,6 +105,17 @@
         return this._call("GET", "/plm/state" + (q.length ? "?" + q.join("&") : ""));
     };
 
+    /**
+     * Run one of the tab's commands.
+     *
+     * Every /plm command answers the same shape — {"success": bool, "error": ...} — and owns its
+     * own dialog, so there is nothing per-command to write here. `hwnd` is 0: a browser frame has
+     * no window handle to parent a dialog to, and the service already treats 0 as "no parent".
+     */
+    Client.prototype.command = function (endpoint, body) {
+        return this._call("POST", endpoint, body || { hwnd: 0 });
+    };
+
     /** Every folder the signed-in user may read, for the navigator. */
     Client.prototype.folders = function () { return this._call("GET", "/plm/navigation/folders"); };
 

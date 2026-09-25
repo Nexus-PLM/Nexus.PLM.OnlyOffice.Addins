@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Nexus PLM</title>
+
+    <!--
+        The background half of the plugin: no window, no UI, and it never draws anything.
+
+        It exists because a VISUAL variation is unloaded the moment its window is closed, and the
+        ribbon tab it registered is unloaded with it - measured on Desktop Editors 9.4.0: the tab
+        appeared, and vanished again as soon as the panel was closed. A background variation keeps
+        running, so the tab stays for as long as the document is open. Send and Encryption, both
+        shipped with Desktop Editors, are built this way.
+
+        Same dependency order as index.html, and for the same reason: no module loader here, so a
+        file that reads another's global at load time must come after it.
+    -->
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+
+    <script type="text/javascript" src="secret.js"></script>
+
+    <script type="text/javascript" src="lib/editors.js"></script>
+    <script type="text/javascript" src="lib/commands.js"></script>
+    <script type="text/javascript" src="lib/panel.js"></script>
+    <script type="text/javascript" src="lib/toolbar.js"></script>
+    <script type="text/javascript" src="lib/client.js"></script>
+    <script type="text/javascript" src="background.js"></script>
+</head>
+<body></body>
+</html>

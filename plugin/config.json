@@ -5,31 +5,90 @@
   "version": "0.1.0",
   "minVersion": "7.0.0",
   "baseUrl": "",
-
   "_comment_onlyofficeScheme": "Load this plugin under the editor's own onlyoffice:// scheme instead of file://. Measured on Desktop Editors 9.4.0: without it the page has an OPAQUE origin (file://) and every fetch and XMLHttpRequest to the Addin Service fails. The three shipped plugins that make network calls - AI, AI agent and DeepL - are the only ones that set this, and sdk-all.js rewrites baseUrl to onlyoffice://plugin/<path> when they do.",
   "onlyofficeScheme": true,
-
   "variations": [
     {
-      "description": "Product lifecycle management from inside the editor.",
+      "_comment": "FIRST on purpose. ONLYOFFICE labels the first variation 'Start' in the plugin's dropdown and turns it into 'Stop' once it is running - it supplies that UI itself, which is why there is no Start or Stop variation here. Checked against LanguageTool, whose dropdown is exactly Start + About. Starting this one puts the Nexus PLM tab in the ribbon and keeps it there: a visual variation is unloaded when its window closes and takes its tab with it, measured on 9.4.0.",
+      "description": "Nexus PLM",
+      "url": "background.html",
+      "icons": [
+        "icons/light/icon.png",
+        "icons/light/icon@2x.png"
+      ],
+      "isViewer": true,
+      "EditorsSupport": [
+        "word",
+        "cell",
+        "slide"
+      ],
+      "isVisual": false,
+      "isModal": false,
+      "isInsideMode": false,
+      "initDataType": "none",
+      "initData": "",
+      "isUpdateOleOnResize": false,
+      "buttons": [],
+      "size": [
+        0,
+        0
+      ],
+      "initOnSelectionChanged": false,
+      "events": []
+    },
+    {
+      "description": "Open panel",
       "url": "index.html",
-
-      "icons": ["icons/light/icon.png", "icons/light/icon@2x.png"],
+      "icons": [
+        "icons/light/icon.png",
+        "icons/light/icon@2x.png"
+      ],
       "isViewer": false,
-
-      "EditorsSupport": ["word", "cell", "slide"],
-
+      "EditorsSupport": [
+        "word",
+        "cell",
+        "slide"
+      ],
       "isVisual": true,
       "isModal": false,
       "isInsideMode": false,
-
       "initDataType": "none",
       "initData": "",
-
       "isUpdateOleOnResize": false,
       "buttons": [],
-
-      "size": [320, 500],
+      "size": [
+        320,
+        500
+      ],
+      "initOnSelectionChanged": false,
+      "events": [],
+      "_comment": "The docked panel. Reached from the tab's Navigator button, and offered here too so it is never unreachable if the tab has not been started."
+    },
+    {
+      "_comment": "Last, where every plugin shipped with Desktop Editors puts About. It shows the service's own About window, so the version and the server are reported the same way in every Nexus host.",
+      "description": "About",
+      "url": "about.html",
+      "icons": [
+        "icons/light/about.png",
+        "icons/light/about@2x.png"
+      ],
+      "isViewer": true,
+      "EditorsSupport": [
+        "word",
+        "cell",
+        "slide"
+      ],
+      "isVisual": false,
+      "isModal": false,
+      "isInsideMode": false,
+      "initDataType": "none",
+      "initData": "",
+      "isUpdateOleOnResize": false,
+      "buttons": [],
+      "size": [
+        0,
+        0
+      ],
       "initOnSelectionChanged": false,
       "events": []
     }
