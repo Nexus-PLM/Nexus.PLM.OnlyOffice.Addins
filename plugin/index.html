@@ -32,6 +32,14 @@
         <div id="panel-buttons"></div>
     </div>
 
+    <!--
+        Written here by tools/install.ps1 from the secret the Addin Service keeps on this machine.
+        Loaded as a script, not fetched: a browser refuses fetch from a file:// page to a file://
+        URL, but will load a sibling script. Missing is a normal state - the panel then says the
+        plugin was not installed properly, rather than failing with a bare 403.
+    -->
+    <script type="text/javascript" src="secret.js"></script>
+
     <script type="text/javascript" src="lib/editors.js"></script>
     <script type="text/javascript" src="lib/panel.js"></script>
     <script type="text/javascript" src="lib/client.js"></script>

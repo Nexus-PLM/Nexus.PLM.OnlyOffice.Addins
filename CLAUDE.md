@@ -23,27 +23,23 @@ Note it is **not** a rule that there is exactly one variation: the plugins shipp
 Editors 9.4.0 routinely carry a second for their About window, and this one will want one too.
 What must hold is that no variation is for a single editor.
 
-## Measured: a plugin frame cannot reach the service yet (Desktop Editors 9.4.0, Sep 24 2026)
+## `onlyofficeScheme` is why this works at all (measured, Desktop Editors 9.4.0)
 
-The plugin registers and appears in the Plugins ribbon in all three editors. From inside a real
-editor, `fetch` and `XMLHttpRequest` to `http://localhost:5100` **both fail**, while the identical
-request from outside the browser succeeds — so the service is up and the call is being blocked.
+`config.json` declares **`"onlyofficeScheme": true`**. Do not remove it. With it the editor serves
+the plugin under its own registered scheme and the page's origin is `onlyoffice://plugin`; without
+it the page is `file://`, its origin is *opaque*, and every `fetch` and `XMLHttpRequest` to the
+Addin Service fails.
 
-It is **CORS**, established by separating the candidates, not by guessing:
+**How that was found, because the method matters more than the fact:** of the plugins shipped with
+Desktop Editors, exactly three make network calls — AI, AI agent and DeepL — and exactly those
+three declare the flag. `sdk-all.js` rewrites their base URL to `onlyoffice://plugin/<path>`.
+Reading what already works beat three rounds of reasoning about CORS.
 
-- The plugin page's origin is `file://` and its protocol `file:` — so this is **not** mixed
-  content, and a browser permits `http://` from it.
-- The service answers `200`/`204` but sends **no** `Access-Control-Allow-Origin` on any origin
-  (`null`, `file://`, `https://...`), and no preflight headers either.
+It is also what keeps the service narrow: a scheme the editor registers cannot be claimed by a web
+page, so the AddinService allows `onlyoffice://plugin` and does **not** allow an opaque origin.
 
-**The AddinService owes CORS headers.** This does not contradict "the service needs no changes for
-a new host": that rule is about commands and dialogs. CORS is a property of every browser-hosted
-client, and no host before this one was a browser.
-
-**Still unmeasured:** Docs in a browser over https, where the page is `https:` and
-`http://localhost:5100` is mixed content — which CORS headers alone will **not** fix. That is a
-prediction, not a measurement. Nothing was listening on 80/443/8080/8443 on the server when this
-was written.
+**Still a prediction, not a measurement:** Docs in a browser over https, where the page is `https:`
+and `http://localhost:5100` is mixed content that no CORS or scheme change fixes.
 
 ## Rules carried over from the other add-ins
 

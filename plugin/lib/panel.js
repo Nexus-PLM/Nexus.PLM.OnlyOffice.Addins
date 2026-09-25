@@ -23,6 +23,22 @@
     var NO_DOCUMENT = "No document is open.";
     var NOT_SIGNED_IN = "Sign in to Nexus PLM to see this document.";
 
+    /**
+     * Shown when the plugin has no per-install secret, so the service refuses it as a caller it
+     * cannot show to be local. Named as a setup problem, because that is what it is: somebody
+     * copied the plugin into place without running the install step. A bare 403 would send them
+     * looking at permissions in PLM.
+     */
+    var NOT_INSTALLED = "This plugin was not installed properly: run the install step so it can "
+        + "prove it is running on your machine.";
+
+    /** The service is not answering at all — the one failure the user has to fix themselves. */
+    var NOT_RUNNING = "Nexus PLM is not running. Start the Nexus PLM Addins tray application.";
+
+    /** The service answered, and would not deal with us. Different from being signed out. */
+    var REFUSED = "Nexus PLM refused this plugin. Re-run the install step to give it the current "
+        + "secret for this machine.";
+
     /** (label, the key on a /plm/state answer). */
     var ROWS = [
         ["Part number", "part_number"],
@@ -77,6 +93,11 @@
     /** The one line at the top of the panel, above the rows. */
     function headline(state, options) {
         var o = options || {};
+        // Before anything else: with no secret every call is refused, so any other message would
+        // be a guess about a service that never answered.
+        if (o.hasSecret === false) { return NOT_INSTALLED; }
+        if (o.unreachable) { return NOT_RUNNING; }
+        if (o.refused) { return REFUSED; }
         if (o.signedIn === false) { return NOT_SIGNED_IN; }
         if (o.hasDocument === false) { return NO_DOCUMENT; }
         if (!isInPlm(state)) { return NOT_IN_PLM; }
@@ -118,6 +139,9 @@
         NOT_IN_PLM: NOT_IN_PLM,
         NO_DOCUMENT: NO_DOCUMENT,
         NOT_SIGNED_IN: NOT_SIGNED_IN,
+        NOT_INSTALLED: NOT_INSTALLED,
+        NOT_RUNNING: NOT_RUNNING,
+        REFUSED: REFUSED,
         ROWS: ROWS,
         BUTTONS: BUTTONS,
         isInPlm: isInPlm,
