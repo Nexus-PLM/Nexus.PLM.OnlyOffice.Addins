@@ -31,10 +31,21 @@ test("config.json declares exactly the editors the code knows", () => {
     assert.deepStrictEqual(declared, known);
 });
 
-test("there is ONE variation serving all three, not one variation each", () => {
-    // The whole architecture of this repo. Three variations would be three plugins in a trench
-    // coat, and they would drift the way the Excel and PowerPoint add-ins did.
-    assert.strictEqual(CONFIG.variations.length, 1);
+test("no variation is for one editor only", () => {
+    // The whole architecture of this repo: one codebase for the three editors. Three variations,
+    // one per editor, would be three plugins in a trench coat and would drift the way the Excel
+    // and PowerPoint add-ins did.
+    //
+    // NOT a count of one, though: the plugins shipped with Desktop Editors 9.4.0 routinely carry
+    // a second variation for their About window, and this plugin will want one too. What must
+    // hold is that EVERY variation serves all three editors.
+    const known = editors.supported().map((e) => e.key).sort();
+    for (const variation of CONFIG.variations) {
+        assert.deepStrictEqual(
+            variation.EditorsSupport.slice().sort(), known,
+            `variation "${variation.description}" does not serve all three editors`
+        );
+    }
 });
 
 test("the guid is in the form ONLYOFFICE requires", () => {

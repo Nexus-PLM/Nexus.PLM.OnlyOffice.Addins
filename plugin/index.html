@@ -12,9 +12,15 @@
         plugins.js is served BY the editor, not by this plugin, and it is what defines
         window.Asc.plugin. It has to come first or Asc.plugin.init is registered on an object the
         editor later replaces, and the plugin loads with nothing happening and nothing logged.
+
+        It is loaded from ../v1/, a SIBLING of this plugin's own folder inside sdkjs-plugins -
+        checked against every plugin shipped with Desktop Editors 9.4.0, which all reference it
+        that way. Not from a CDN: Desktop Editors runs offline, and a plugin whose runtime comes
+        over the internet simply does not start on a machine with no route out.
     -->
-    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
-    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <script type="text/javascript" src="../v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="../v1/plugins.css" />
 
     <link rel="stylesheet" href="styles.css" />
 </head>
@@ -25,6 +31,14 @@
         <dl id="panel-rows"></dl>
         <div id="panel-buttons"></div>
     </div>
+
+    <!--
+        Written here by tools/install.ps1 from the secret the Addin Service keeps on this machine.
+        Loaded as a script, not fetched: a browser refuses fetch from a file:// page to a file://
+        URL, but will load a sibling script. Missing is a normal state - the panel then says the
+        plugin was not installed properly, rather than failing with a bare 403.
+    -->
+    <script type="text/javascript" src="secret.js"></script>
 
     <script type="text/javascript" src="lib/editors.js"></script>
     <script type="text/javascript" src="lib/panel.js"></script>

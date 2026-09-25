@@ -18,11 +18,15 @@
 
     function el(id) { return document.getElementById(id); }
 
-    function draw(state, user, signedIn) {
+    function draw(state, user, signedIn, trouble) {
+        var t = trouble || {};
         el("panel-title").textContent = rules.title(editorType);
         el("panel-headline").textContent = rules.headline(state, {
             hasDocument: true,
-            signedIn: signedIn
+            signedIn: signedIn,
+            hasSecret: t.hasSecret === false ? false : clientModule.hasSecret(),
+            unreachable: t.unreachable,
+            refused: t.refused
         });
 
         var rows = el("panel-rows");
@@ -59,13 +63,21 @@
     }
 
     function refresh() {
+        if (!clientModule.hasSecret()) { draw(null, null, false, { hasSecret: false }); return; }
+
         client.me().then(function (me) {
+            // Three different failures, said three different ways. Reporting all of them as
+            // "sign in" was wrong: only one of them is fixed by signing in.
+            if (me && me.unreachable) { draw(null, null, false, { unreachable: true }); return; }
+            if (me && me.refused) { draw(null, null, false, { refused: true }); return; }
+
             var signedIn = !!(me && me.success && me.username);
-            if (!signedIn) { draw(null, null, false); return; }
+            if (!signedIn) { draw(null, null, false, {}); return; }
+
             // Which file this is comes from the editor, not from us; until that is wired the
             // panel draws the signed-in, document-unknown state, which is a real state.
             client.state({}).then(function (state) {
-                draw(state, me.username, true);
+                draw(state, me.username, true, {});
             });
         });
     }
