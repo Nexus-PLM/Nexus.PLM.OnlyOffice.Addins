@@ -13,23 +13,60 @@ credentials, customer names, machine names or paths outside this repository.
 | **The plugin** | JavaScript, loaded by the editor. No bundler and no module loader — the plugin frame is a plain page, so every file is a `<script>` tag in dependency order and each module is UMD so the tests can `require` the same file. |
 | **The connector** | **There isn't one, and that is deliberate.** ONLYOFFICE reads and writes OOXML, so `Nexus.PLM.Office.*.Templates` already handles `.docx`/`.xlsx`/`.pptx` field discovery and value sync through OpenXml, with no Office and no COM, and the Vault already runs them. A connector here would be a second implementation of one format. |
 
-**One plugin, three editors.** `config.json` has a **single variation** declaring
-`EditorsSupport: ["word", "cell", "slide"]`. Nothing outside `lib/editors.js` may branch on which
-editor it is in. A test asserts there is exactly one variation and that `config.json` and the code
-agree about which editors exist — because neither disagreement fails loudly inside ONLYOFFICE.
+**One plugin, three editors.** Every variation in `config.json` declares
+`EditorsSupport: ["word", "cell", "slide"]`, and nothing outside `lib/editors.js` may branch on
+which editor it is in. Tests assert that no variation serves fewer than all three, and that
+`config.json` and the code agree about which editors exist — neither disagreement fails loudly
+inside ONLYOFFICE.
 
-## The open question — measure this before building commands
+Note it is **not** a rule that there is exactly one variation: the plugins shipped with Desktop
+Editors 9.4.0 routinely carry a second for their About window, and this one will want one too.
+What must hold is that no variation is for a single editor.
 
-This is the first Nexus host that is **not a desktop process**. The plugin is JavaScript in a
-browser frame, and two things stand between it and the Addin Service on `localhost:5100`:
+## `onlyofficeScheme` is why this works at all (measured, Desktop Editors 9.4.0)
 
-1. **CORS.** The service answers desktop clients, which send no `Origin`. A browser sends one and
-   discards the response without `Access-Control-Allow-Origin`.
-2. **Mixed content.** A browser on an `https://` page will not call `http://localhost:5100` at all.
+`config.json` declares **`"onlyofficeScheme": true`**. Do not remove it. With it the editor serves
+the plugin under its own registered scheme and the page's origin is `onlyoffice://plugin`; without
+it the page is `file://`, its origin is *opaque*, and every `fetch` and `XMLHttpRequest` to the
+Addin Service fails.
 
-Measure both, on **Desktop Editors and on Docs in a browser** — they may well differ. Write down
-what was measured. Do not design around either until then, and do not assume a service change is
-the answer: the rule below still applies.
+**How that was found, because the method matters more than the fact:** of the plugins shipped with
+Desktop Editors, exactly three make network calls — AI, AI agent and DeepL — and exactly those
+three declare the flag. `sdk-all.js` rewrites their base URL to `onlyoffice://plugin/<path>`.
+Reading what already works beat three rounds of reasoning about CORS.
+
+It is also what keeps the service narrow: a scheme the editor registers cannot be claimed by a web
+page, so the AddinService allows `onlyoffice://plugin` and does **not** allow an opaque origin.
+
+### The documentation describes this flag wrongly — trust the code
+
+`api.onlyoffice.com` says `onlyofficeScheme` "specifies whether the plugin is included in the
+server or desktop builds branded as ONLYOFFICE". That is not what it does, and anyone who reads
+only the docs will not understand why this plugin needs it. Confirmed in ONLYOFFICE's own source:
+
+- `sdkjs/common/Local/common.js` — `if (pluginsData[i]["onlyofficeScheme"]) { baseUrl =
+  "onlyoffice://plugin/" + baseUrl; }`
+- `desktop-sdk/ChromiumBasedEditors/lib/src/cefview.cpp` — the same rewrite, **unconditional**:
+  there is no branding check despite the doc's wording, so it works in any desktop build.
+
+**Still a prediction, not a measurement:** Docs in a browser over https, where the page is `https:`
+and `http://localhost:5100` is mixed content that no CORS or scheme change fixes.
+
+## The next slice: which file the editor has open
+
+The panel currently reports every document as not in PLM because it does not know the file. What
+is known so far, from ONLYOFFICE's own docs and source rather than from guessing:
+
+- **`Asc.plugin.info` does not carry it.** Its documented fields are `data`, `editorType`, `guid`,
+  `height`, `imgSrc`, `mmToPx`, `objectId`, `recalculate`, `resize`, `width`. No name, path or URL.
+- **The lead worth following is `initDataType: "desktop-external"`** — "the main page data of the
+  desktop app (system messages)". It is what ONLYOFFICE's own **encryption** plugins declare, and
+  those work against local documents; there is a doc page, `desktop-editors/get-started/
+  how-it-works/encrypting-local-documents`. A second variation can declare it, since variations do
+  not all have to be alike — only all three editors have to be served.
+
+Do not invent a mechanism here. Read the encryption plugins first: they are the ones already
+solving "a plugin that needs to know about the local file".
 
 ## Rules carried over from the other add-ins
 

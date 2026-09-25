@@ -7,9 +7,10 @@ Product lifecycle management from inside the ONLYOFFICE editors. Check a documen
 PLM knows about it, edit its attributes and check it back in — in **Document**, **Spreadsheet**
 and **Presentation**, without leaving the editor.
 
-> **Status: early.** The plugin loads, reports which editor it is in, and draws the panel. The
-> commands are not wired up yet, and one thing has to be measured before they can be — see
-> [The open question](#the-open-question). Nothing here has been run against a real ONLYOFFICE.
+> **Status: early, and talking to PLM.** The plugin installs, registers, appears in the Plugins
+> ribbon of all three editors in ONLYOFFICE Desktop Editors 9.4.0, reaches the Addin Service, and
+> reports the signed-in user. The commands themselves are the next slice: the panel does not yet
+> know which file the editor has open, so it honestly reports the document as not in PLM.
 
 ---
 
@@ -47,19 +48,29 @@ ONLYOFFICE, LibreOffice, Word, Excel, PowerPoint and FreeCAD. A host declares wh
 travels with the request; **the service needs no change for a new host.** If this plugin ever seems
 to need one, the question to ask is what it should be declaring instead.
 
-## The open question
+## How it reaches the service — measured, Desktop Editors 9.4.0, Sep 24 2026
 
-Every other Nexus host is a desktop process. This one is JavaScript in a browser frame, and two
-things stand between it and the service. Both must be measured before the commands are built:
+The plugin declares **`"onlyofficeScheme": true`**, and that one line is what makes the whole thing
+possible. With it, the editor serves the plugin under its own registered scheme and
+`window.location.origin` is `onlyoffice://plugin`. Without it the page is `file://`, its origin is
+*opaque*, and **every** `fetch` and `XMLHttpRequest` to the Addin Service fails — measured, before
+and after.
 
-1. **CORS.** The service answers desktop clients, which send no `Origin`. A browser sends one and
-   will discard the response without `Access-Control-Allow-Origin`.
-2. **Mixed content.** A browser on an `https://` page will not call `http://localhost:5100` at all,
-   whatever the service allows.
+That was not guessed at. Of the plugins shipped with Desktop Editors, exactly three make network
+calls — AI, AI agent and DeepL — and exactly those three declare the flag. `sdk-all.js` rewrites
+their base URL to `onlyoffice://plugin/<path>`.
 
-Neither changes where the dialogs belong. But until both are measured against a real ONLYOFFICE —
-Desktop Editors and Docs in a browser are likely to differ — nothing that assumes the call
-succeeds should be written.
+It matters beyond getting a call through: a named scheme registered by the editor **cannot be
+claimed by a web page**, whereas an opaque origin can be obtained by any website through a
+sandboxed iframe. So the AddinService allows `onlyoffice://plugin` specifically, and does not have
+to allow `null` at all.
+
+### Still unmeasured
+
+**Docs in a browser, over https.** There the page would be `https:` and `http://localhost:5100`
+is mixed content, which no CORS or scheme change fixes — the browser refuses before any header is
+read. That is a prediction from how the mechanisms work, not a measurement; nothing was listening
+on 80/443/8080/8443 on the server when this was written.
 
 ## No connector in this repo, on purpose
 
@@ -68,6 +79,16 @@ use. `Nexus.PLM.Office.*.Templates` already discovers, reads and writes the driv
 those files through OpenXml only, with no Office installed and no COM, and the Nexus Vault already
 runs them server-side. So there is nothing for this repo to add there, and adding it would mean two
 implementations of one format.
+
+## Installing it
+
+```powershell
+pwsh tools/install.ps1
+```
+
+Copies the plugin into ONLYOFFICE's **user** plugin folder — the one under Program Files needs
+elevation, and the user folder has its own `v1`, so the `../v1/plugins.js` the page loads still
+resolves.
 
 ## Tests
 

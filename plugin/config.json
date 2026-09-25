@@ -6,6 +6,9 @@
   "minVersion": "7.0.0",
   "baseUrl": "",
 
+  "_comment_onlyofficeScheme": "Load this plugin under the editor's own onlyoffice:// scheme instead of file://. Measured on Desktop Editors 9.4.0: without it the page has an OPAQUE origin (file://) and every fetch and XMLHttpRequest to the Addin Service fails. The three shipped plugins that make network calls - AI, AI agent and DeepL - are the only ones that set this, and sdk-all.js rewrites baseUrl to onlyoffice://plugin/<path> when they do.",
+  "onlyofficeScheme": true,
+
   "variations": [
     {
       "description": "Product lifecycle management from inside the editor.",
