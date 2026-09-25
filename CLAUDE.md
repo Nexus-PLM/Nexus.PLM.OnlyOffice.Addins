@@ -13,23 +13,37 @@ credentials, customer names, machine names or paths outside this repository.
 | **The plugin** | JavaScript, loaded by the editor. No bundler and no module loader — the plugin frame is a plain page, so every file is a `<script>` tag in dependency order and each module is UMD so the tests can `require` the same file. |
 | **The connector** | **There isn't one, and that is deliberate.** ONLYOFFICE reads and writes OOXML, so `Nexus.PLM.Office.*.Templates` already handles `.docx`/`.xlsx`/`.pptx` field discovery and value sync through OpenXml, with no Office and no COM, and the Vault already runs them. A connector here would be a second implementation of one format. |
 
-**One plugin, three editors.** `config.json` has a **single variation** declaring
-`EditorsSupport: ["word", "cell", "slide"]`. Nothing outside `lib/editors.js` may branch on which
-editor it is in. A test asserts there is exactly one variation and that `config.json` and the code
-agree about which editors exist — because neither disagreement fails loudly inside ONLYOFFICE.
+**One plugin, three editors.** Every variation in `config.json` declares
+`EditorsSupport: ["word", "cell", "slide"]`, and nothing outside `lib/editors.js` may branch on
+which editor it is in. Tests assert that no variation serves fewer than all three, and that
+`config.json` and the code agree about which editors exist — neither disagreement fails loudly
+inside ONLYOFFICE.
 
-## The open question — measure this before building commands
+Note it is **not** a rule that there is exactly one variation: the plugins shipped with Desktop
+Editors 9.4.0 routinely carry a second for their About window, and this one will want one too.
+What must hold is that no variation is for a single editor.
 
-This is the first Nexus host that is **not a desktop process**. The plugin is JavaScript in a
-browser frame, and two things stand between it and the Addin Service on `localhost:5100`:
+## Measured: a plugin frame cannot reach the service yet (Desktop Editors 9.4.0, Sep 24 2026)
 
-1. **CORS.** The service answers desktop clients, which send no `Origin`. A browser sends one and
-   discards the response without `Access-Control-Allow-Origin`.
-2. **Mixed content.** A browser on an `https://` page will not call `http://localhost:5100` at all.
+The plugin registers and appears in the Plugins ribbon in all three editors. From inside a real
+editor, `fetch` and `XMLHttpRequest` to `http://localhost:5100` **both fail**, while the identical
+request from outside the browser succeeds — so the service is up and the call is being blocked.
 
-Measure both, on **Desktop Editors and on Docs in a browser** — they may well differ. Write down
-what was measured. Do not design around either until then, and do not assume a service change is
-the answer: the rule below still applies.
+It is **CORS**, established by separating the candidates, not by guessing:
+
+- The plugin page's origin is `file://` and its protocol `file:` — so this is **not** mixed
+  content, and a browser permits `http://` from it.
+- The service answers `200`/`204` but sends **no** `Access-Control-Allow-Origin` on any origin
+  (`null`, `file://`, `https://...`), and no preflight headers either.
+
+**The AddinService owes CORS headers.** This does not contradict "the service needs no changes for
+a new host": that rule is about commands and dialogs. CORS is a property of every browser-hosted
+client, and no host before this one was a browser.
+
+**Still unmeasured:** Docs in a browser over https, where the page is `https:` and
+`http://localhost:5100` is mixed content — which CORS headers alone will **not** fix. That is a
+prediction, not a measurement. Nothing was listening on 80/443/8080/8443 on the server when this
+was written.
 
 ## Rules carried over from the other add-ins
 
