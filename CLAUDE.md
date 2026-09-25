@@ -38,8 +38,35 @@ Reading what already works beat three rounds of reasoning about CORS.
 It is also what keeps the service narrow: a scheme the editor registers cannot be claimed by a web
 page, so the AddinService allows `onlyoffice://plugin` and does **not** allow an opaque origin.
 
+### The documentation describes this flag wrongly — trust the code
+
+`api.onlyoffice.com` says `onlyofficeScheme` "specifies whether the plugin is included in the
+server or desktop builds branded as ONLYOFFICE". That is not what it does, and anyone who reads
+only the docs will not understand why this plugin needs it. Confirmed in ONLYOFFICE's own source:
+
+- `sdkjs/common/Local/common.js` — `if (pluginsData[i]["onlyofficeScheme"]) { baseUrl =
+  "onlyoffice://plugin/" + baseUrl; }`
+- `desktop-sdk/ChromiumBasedEditors/lib/src/cefview.cpp` — the same rewrite, **unconditional**:
+  there is no branding check despite the doc's wording, so it works in any desktop build.
+
 **Still a prediction, not a measurement:** Docs in a browser over https, where the page is `https:`
 and `http://localhost:5100` is mixed content that no CORS or scheme change fixes.
+
+## The next slice: which file the editor has open
+
+The panel currently reports every document as not in PLM because it does not know the file. What
+is known so far, from ONLYOFFICE's own docs and source rather than from guessing:
+
+- **`Asc.plugin.info` does not carry it.** Its documented fields are `data`, `editorType`, `guid`,
+  `height`, `imgSrc`, `mmToPx`, `objectId`, `recalculate`, `resize`, `width`. No name, path or URL.
+- **The lead worth following is `initDataType: "desktop-external"`** — "the main page data of the
+  desktop app (system messages)". It is what ONLYOFFICE's own **encryption** plugins declare, and
+  those work against local documents; there is a doc page, `desktop-editors/get-started/
+  how-it-works/encrypting-local-documents`. A second variation can declare it, since variations do
+  not all have to be alike — only all three editors have to be served.
+
+Do not invent a mechanism here. Read the encryption plugins first: they are the ones already
+solving "a plugin that needs to know about the local file".
 
 ## Rules carried over from the other add-ins
 
