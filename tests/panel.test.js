@@ -65,7 +65,7 @@ test("a checked-in document offers Check Out and not Check In", () => {
 test("a document checked out to me offers Check In and Save", () => {
     const allowed = panel.enabledButtons(MINE, "admin");
     assert.ok(allowed.includes("check_in"));
-    assert.ok(allowed.includes("save_to_plm"));
+    assert.ok(allowed.includes("save"));
     assert.ok(!allowed.includes("check_out"));
 });
 
@@ -74,7 +74,7 @@ test("a document checked out to somebody else offers neither", () => {
     const allowed = panel.enabledButtons(THEIRS, "admin");
     assert.ok(!allowed.includes("check_in"));
     assert.ok(!allowed.includes("check_out"));
-    assert.ok(!allowed.includes("save_to_plm"));
+    assert.ok(!allowed.includes("save"));
 });
 
 test("nothing is offered for a document PLM does not know", () => {

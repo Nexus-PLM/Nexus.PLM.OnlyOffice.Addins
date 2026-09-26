@@ -120,3 +120,32 @@ test("the HTTP status never overwrites the item's own status", () => {
     assert.strictEqual(panel.isInPlm(answer), false);
     assert.strictEqual(panel.rowsFor(answer).find(([l]) => l === "Status")[1], panel.ABSENT);
 });
+
+// ── the tray ─────────────────────────────────────────────────────────────────
+
+test("connecting tells the tray this host's name and version", async () => {
+    // Without this the plugin works but is invisible: a ribbon full of commands and nothing in
+    // the tray, which is exactly how it looked.
+    const fetch = recordingFetch({ success: true });
+    await new clientModule.Client(undefined, fetch, "s").connect();
+
+    const call = fetch.calls[0];
+    assert.match(call.url, /\/api\/addins\/connect$/);
+    assert.deepStrictEqual(JSON.parse(call.options.body),
+        { name: "ONLYOFFICE", version: clientModule.ADDIN_VERSION });
+});
+
+test("the heartbeat is comfortably inside the service's 45 second timeout", () => {
+    // Twice inside the window, so one missed beat is not a disconnection.
+    assert.ok(clientModule.HEARTBEAT_MS < 22500, "too slow to survive a missed beat");
+});
+
+test("a toast carries the shape the tray expects", async () => {
+    const fetch = recordingFetch({ success: true });
+    await new clientModule.Client(undefined, fetch, "s").notify("hello", "warning");
+
+    const body = JSON.parse(fetch.calls[0].options.body);
+    assert.strictEqual(body.title, "Nexus PLM");
+    assert.strictEqual(body.description, "hello");
+    assert.strictEqual(body.severity, "warning");
+});

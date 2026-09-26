@@ -40,9 +40,18 @@
     -->
     <script type="text/javascript" src="secret.js"></script>
 
+    <!--
+        DEPENDENCY ORDER, and it matters: there is no module loader here, so a file that reads
+        another's global at load time must come after it. panel.js and toolbar.js both build
+        tables from commands.js the moment they are evaluated - listed the other way round they
+        throw, the global is never defined, and the panel comes up completely EMPTY with nothing
+        on screen to say why. tests/page.test.js holds this order.
+    -->
     <script type="text/javascript" src="lib/editors.js"></script>
-    <script type="text/javascript" src="lib/panel.js"></script>
     <script type="text/javascript" src="lib/client.js"></script>
+    <script type="text/javascript" src="lib/commands.js"></script>
+    <script type="text/javascript" src="lib/panel.js"></script>
+    <script type="text/javascript" src="lib/toolbar.js"></script>
     <script type="text/javascript" src="ui.js"></script>
     <script type="text/javascript" src="plugin.js"></script>
 </body>
