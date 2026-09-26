@@ -121,6 +121,14 @@ test("New Workflow and Release want the document checked in, as Word refuses the
     }
 });
 
+test("Reload Document is refused while the document is checked out to me, as Word refuses it", () => {
+    // A copy checked out to you is the newer one; reloading would throw your work away.
+    assert.ok(!commands.isEnabled(commands.byId("reload_document"), MINE));
+    assert.match(commands.disabledBecause(commands.byId("reload_document"), MINE), /your copy is the newer one/);
+    assert.ok(commands.isEnabled(commands.byId("reload_document"), CHECKED_IN));
+    assert.ok(commands.isEnabled(commands.byId("reload_document"), THEIRS), "someone else may have saved a newer version");
+});
+
 test("Edit Values needs the document checked out to me, as Word insists", () => {
     assert.ok(commands.isEnabled(commands.byId("edit_values"), MINE));
     assert.ok(!commands.isEnabled(commands.byId("edit_values"), CHECKED_IN));

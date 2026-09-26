@@ -39,6 +39,9 @@
      * DOCUMENT   — needs to know which PLM item the open file is.
      * CHECKED_IN — that, and the item not checked out.
      * MINE       — that, and checked out to the signed-in user.
+     * NOT_MINE   — that, and NOT checked out to the signed-in user: what Word requires before
+     *              replacing the document with PLM's copy, because a copy checked out to you is
+     *              the newer one.
      */
     var ALWAYS = "always";
     var SIGNED_OUT = "signed_out";
@@ -46,6 +49,8 @@
     var DOCUMENT = "document";
     var CHECKED_IN = "checked_in";
     var MINE = "mine";
+    /** Needs the document, and it must NOT be checked out to the signed-in user. */
+    var NOT_MINE = "not_mine";
 
     /** Groups, in Word's order. */
     var GROUPS = ["Account", "Data Management", "Navigation and View", "Tasks",
@@ -104,7 +109,8 @@
         //: Word: "Check out the document before editing attribute values."
         { id: "edit_values",      label: "Edit Values",           group: "Attribute Exchange",  endpoint: "/plm/edit-values",      when: MINE },
         { id: "refresh_values",   label: "Refresh Values",        group: "Attribute Exchange",  endpoint: "/plm/refresh-values",   when: DOCUMENT },
-        { id: "reload_document",  label: "Reload Document",       group: "Attribute Exchange",  endpoint: "/plm/reload-document",  when: DOCUMENT, parent: "refresh_values" },
+        //: Word: "You have this document checked out - your copy is the newer one."
+        { id: "reload_document",  label: "Reload Document",       group: "Attribute Exchange",  endpoint: "/plm/reload-document",  when: NOT_MINE, parent: "refresh_values" },
 
         // ── Settings ─────────────────────────────────────────────────────────
         { id: "settings",         label: "Current Settings",      group: "Settings",            endpoint: "/plm/settings",         when: SIGNED_IN },
@@ -120,7 +126,8 @@
      * second column eventually always does.
      */
     function needsDocument(command) {
-        return command.when === DOCUMENT || command.when === CHECKED_IN || command.when === MINE;
+        return command.when === DOCUMENT || command.when === CHECKED_IN || command.when === MINE ||
+               command.when === NOT_MINE;
     }
 
     /** The commands drawn as buttons: everything that is not in another command's menu. */
@@ -164,6 +171,7 @@
             case DOCUMENT:   return !!c.signedIn && inPlm;
             case CHECKED_IN: return !!c.signedIn && inPlm && state.status === "checked_in";
             case MINE:       return !!c.signedIn && mine;
+            case NOT_MINE:   return !!c.signedIn && inPlm && !mine;
             default:         return false;
         }
     }
@@ -258,13 +266,16 @@
                 : "Not available while the document is " + String(state.status).replace(/_/g, " ") + ".";
         }
         if (command.when === MINE) { return "This document is not checked out to you."; }
+        if (command.when === NOT_MINE) {
+            return "You have this document checked out - your copy is the newer one. Check in first if you want to go back to what PLM holds.";
+        }
         return "Not available for this document.";
     }
 
     return {
         TAB: TAB,
         ALWAYS: ALWAYS, SIGNED_OUT: SIGNED_OUT, SIGNED_IN: SIGNED_IN,
-        DOCUMENT: DOCUMENT, CHECKED_IN: CHECKED_IN, MINE: MINE,
+        DOCUMENT: DOCUMENT, CHECKED_IN: CHECKED_IN, MINE: MINE, NOT_MINE: NOT_MINE,
         COMMANDS: COMMANDS,
         GROUPS: GROUPS,
         bodyFor: bodyFor,
