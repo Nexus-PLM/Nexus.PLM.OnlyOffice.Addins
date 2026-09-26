@@ -51,8 +51,6 @@ const CASES = {
  * case anyway — so the outcome matches and only the moment the user is told differs.
  */
 const STRICTER = {
-    // OnRelease: "Check the document in before releasing it."
-    release:        ["checked out to me", "checked out to jdoe"],
     // OnNewWorkflow: "Check in the document before adding it to a workflow."
     new_workflow:   ["checked out to me", "checked out to jdoe"],
     // OnCheckInOut: one button whose label follows the lock; the other half always refuses.
@@ -146,12 +144,17 @@ test("every command that opens a type or vault browser declares what this host c
 test("the differences from Word that remain are the ones we chose", () => {
     // A list, so adding a difference means editing this test on purpose.
     // 1. Check Out and Check In are separate buttons; Word has one split button whose label
-    //    follows the lock. The editor greys a split button's menu with the button, and Release
-    //    must stay reachable while Check In is not.
+    //    follows the lock, and the editor greys a split button's menu with the button.
     assert.ok(commands.byId("check_out") && commands.byId("check_in"));
-    // 2. Sign In and Sign Out are separate buttons; Word has one toggle.
+    // 2. Word has Release; this host does not, on purpose (Marc, Sep 26 2026). Releasing is a
+    //    workflow's job: the command wrote the lifecycle status straight onto the revision and so
+    //    went around the approvals a workflow declares. Word's own web and WPF clients have never
+    //    offered it. New Workflow is the way in, and it is here.
+    assert.ok(!commands.byId("release"));
+    assert.ok(commands.byId("new_workflow"));
+    // 3. Sign In and Sign Out are separate buttons; Word has one toggle.
     assert.strictEqual(commands.byId("sign_in").when, commands.SIGNED_OUT);
     assert.strictEqual(commands.byId("sign_out").when, commands.SIGNED_IN);
-    // 3. Word has a brand button that opens About; here About is in the Help menu.
+    // 4. Word has a brand button that opens About; here About is in the Help menu.
     assert.strictEqual(commands.byId("about").parent, "help");
 });

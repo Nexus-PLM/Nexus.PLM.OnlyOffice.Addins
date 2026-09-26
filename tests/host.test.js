@@ -47,7 +47,7 @@ test("when the editor cannot say whether the file is saved, the command goes ahe
 });
 
 test("a command that does not upload the file never asks about it", () => {
-    for (const id of ["new", "open", "check_out", "release", "properties", "worklist"]) {
+    for (const id of ["new", "open", "check_out", "properties", "worklist"]) {
         assert.strictEqual(host.refuse(by(id), { path: null, saved: false, changes: 9 }), null, id);
     }
 });
@@ -83,7 +83,7 @@ test("a body the service could not bind is reported as this plugin's own mistake
 });
 
 test("silence with no error at all is reported as no response", () => {
-    const effects = host.effectsFor(by("release"), { success: false }, ME);
+    const effects = host.effectsFor(by("check_out"), { success: false }, ME);
     assert.strictEqual(effects.length, 1);
     assert.match(effects[0].message, /No response/);
 });
@@ -211,7 +211,7 @@ test("the commands whose dialogs the service owns end with nothing for the host 
 });
 
 test("every command that can move the lock, the revision or the lifecycle is re-read afterwards", () => {
-    for (const id of ["check_out", "check_in", "release", "revise", "change_owner", "sign_in", "sign_out", "save_as_new", "save_as_existing"]) {
+    for (const id of ["check_out", "check_in", "revise", "change_owner", "sign_in", "sign_out", "save_as_new", "save_as_existing"]) {
         assert.ok(host.movesState(by(id)), id);
     }
     for (const id of ["properties", "worklist", "settings", "about", "help", "refresh_values"]) {
