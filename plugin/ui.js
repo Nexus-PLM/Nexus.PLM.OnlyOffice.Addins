@@ -12,14 +12,22 @@
 
     var rules = window.NexusPlmPanel;
     var clientModule = window.NexusPlmClient;
+    var commands = window.NexusPlmCommands;
+    var toolbar = window.NexusPlmToolbar;
 
     var client = new clientModule.Client();
     var editorType = null;
+    //: What the tab and the panel are both drawn from, so they cannot disagree.
+    var context = { signedIn: false, user: null, state: null };
+    //: Handlers are attached once; button ids never change, so re-sending the tab does not
+    //: need them re-attached, and attaching twice would run a command twice per click.
+    var handlersAttached = false;
 
     function el(id) { return document.getElementById(id); }
 
     function draw(state, user, signedIn, trouble) {
         var t = trouble || {};
+        context = { signedIn: signedIn, user: user, state: state };
         el("panel-title").textContent = rules.title(editorType);
         el("panel-headline").textContent = rules.headline(state, {
             hasDocument: true,
@@ -43,6 +51,7 @@
         var allowed = rules.enabledButtons(state, user);
         var buttons = el("panel-buttons");
         buttons.textContent = "";
+
         rules.BUTTONS.forEach(function (b) {
             var button = document.createElement("button");
             button.textContent = b[0];
@@ -55,12 +64,95 @@
         });
     }
 
-    function run(command) {
-        // The commands themselves are the next slice; see docs/COMMANDS.md for the set and the
-        // order they are being built in. Wiring them before the service can be reached from a
-        // browser frame at all would be building on an unmeasured assumption.
-        window.console && window.console.log("Nexus PLM: " + command + " is not wired up yet.");
+    /**
+     * Run one command, from the tab or from the panel.
+     *
+     * Both go through here so that a command cannot behave differently depending on which one was
+     * pressed - the bug the single command table exists to prevent.
+     */
+    function run(commandId) {
+        var command = commands.byId(commandId);
+        if (!command) { return; }
+
+        // Never act on a command the rules say is not available. The tab greys it and the panel
+        // disables it, but a stale tab is one editor repaint away and the service would then
+        // refuse in a way the user cannot tell from a bug.
+        if (!commands.isEnabled(command, context)) {
+            say(commands.disabledBecause(command, context));
+            return;
+        }
+
+        if (command.id === "navigator") { togglePanel(); return; }
+        if (command.id === "help") { openHelp(); return; }
+
+        var body = { hwnd: 0 };
+        if (commands.needsDocument(command) && context.state) {
+            body.item_id = context.state.item_id;
+        }
+
+        client.command(command.endpoint, body).then(function (answer) {
+            if (answer && answer.success === false && answer.error) { say(answer.error); }
+            // Whatever it did, the document's state may have moved underneath us.
+            refresh();
+        });
     }
+
+    /**
+     * Every command, grouped the way the Word ribbon groups them.
+     *
+     * They live here rather than on a ribbon tab because Desktop Editors 9.4.0's editors
+     * implement no menu-extension method at all - measured: AddToolbarMenuItem,
+     * UpdateToolbarMenuItem and the context-menu methods appear nowhere in its sdk-all.js, so the
+     * call is accepted by the plugin runtime and then goes nowhere. The tab payload is still
+     * built and still sent, so a newer build lights it up with no further work; this is what a
+     * user has today.
+     */
+    function drawCommands() {
+        var host = el("panel-buttons");
+        host.textContent = "";
+
+        commands.GROUPS.forEach(function (group) {
+            var members = commands.inGroup(group);
+            if (!members.length) { return; }
+
+            var heading = document.createElement("h2");
+            heading.className = "nexus-group";
+            heading.textContent = group;
+            host.appendChild(heading);
+
+            members.forEach(function (command) {
+                var why = commands.disabledBecause(command, context);
+                var button = document.createElement("button");
+                button.className = "nexus-button";
+                button.textContent = command.label;
+                button.disabled = !commands.isEnabled(command, context);
+                // A greyed button that does not say why is a dead end the user pokes at.
+                button.title = why || command.label;
+                // Each button carries what it does, rather than a handler working out which one
+                // was pressed. The LibreOffice panel learned that the hard way.
+                button.addEventListener("click", function () { run(command.id); });
+                host.appendChild(button);
+            });
+        });
+    }
+
+    /** Say something to the user through the service's own toast, so it looks like every host. */
+    function say(message) {
+        if (!message) { return; }
+        client.notify ? client.notify(message) : (window.console && window.console.log(message));
+    }
+
+    function togglePanel() {
+        // The panel IS this plugin's window; asking the editor to show the plugin is how it comes
+        // back once closed.
+        try { window.Asc.plugin.executeCommand("close", ""); } catch (e) { /* already closed */ }
+    }
+
+    function openHelp() {
+        try { window.Asc.plugin.executeMethod("OpenLink", ["https://nexusplm.help/"]); }
+        catch (e) { window.console && window.console.log("Nexus PLM: could not open help."); }
+    }
+
 
     function refresh() {
         if (!clientModule.hasSecret()) { draw(null, null, false, { hasSecret: false }); return; }

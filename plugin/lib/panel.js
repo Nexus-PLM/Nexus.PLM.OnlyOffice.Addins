@@ -8,11 +8,11 @@
 
 (function (root, factory) {
     if (typeof module === "object" && module.exports) {
-        module.exports = factory(require("./editors.js"));
+        module.exports = factory(require("./editors.js"), require("./commands.js"));
     } else {
-        root.NexusPlmPanel = factory(root.NexusPlmEditors);
+        root.NexusPlmPanel = factory(root.NexusPlmEditors, root.NexusPlmCommands);
     }
-}(typeof self !== "undefined" ? self : this, function (editors) {
+}(typeof self !== "undefined" ? self : this, function (editors, commands) {
     "use strict";
 
     /** Shown in place of a value the server did not send. An empty cell reads as a bug. */
@@ -50,18 +50,18 @@
     ];
 
     /**
-     * Each button: label, the command it runs, and when it may be pressed.
+     * The handful of commands the panel puts within reach, as [label, id] pairs.
      *
-     * The rule matches the LibreOffice add-in's and the Office ribbon's, because a user who finds
-     * a command enabled in one host and greyed in another has found a bug, whichever is right.
+     * Only the ids are chosen here. The label and the rule for when each may be pressed come from
+     * the one command table, so the panel and the Nexus PLM tab cannot disagree — a user who finds
+     * a command enabled in one and greyed in the other has found a bug, whichever is right.
      */
-    var BUTTONS = [
-        ["Check Out", "check_out", "checked_in"],
-        ["Check In", "check_in", "mine"],
-        ["Save to PLM", "save_to_plm", "mine"],
-        ["Edit Values", "edit_values", "in_plm"],
-        ["Refresh", "refresh_values", "in_plm"]
-    ];
+    var PANEL_COMMANDS = ["check_out", "check_in", "save", "edit_values", "refresh_values"];
+
+    var BUTTONS = PANEL_COMMANDS.map(function (id) {
+        var command = commands.byId(id);
+        return [command.label, command.id, command.when];
+    });
 
     function statusWord(status) {
         if (!status) { return ABSENT; }
@@ -105,24 +105,16 @@
     }
 
     /**
-     * Which buttons may be pressed for this state, as an array of command names.
+     * Which of the panel's buttons may be pressed, as an array of command ids.
      *
-     * `user` is who is signed in: a document checked out to somebody else is not yours to check
-     * in, and the panel must not offer it — the service would refuse, and an offer that is always
-     * refused is worse than no offer.
+     * Delegated to the command table rather than decided again here. The panel is only ever
+     * reached with a session, so `signedIn` is implied by having a user.
      */
     function enabledButtons(state, user) {
-        if (!isInPlm(state)) { return []; }
-        var status = state.status;
-        var mine = status === "checked_out" && !!user && state.checked_out_by === user;
-
-        return BUTTONS.filter(function (b) {
-            var rule = b[2];
-            if (rule === "in_plm") { return true; }
-            if (rule === "checked_in") { return status === "checked_in"; }
-            if (rule === "mine") { return mine; }
-            return false;
-        }).map(function (b) { return b[1]; });
+        var context = { signedIn: !!user, user: user, state: state };
+        return PANEL_COMMANDS.filter(function (id) {
+            return commands.isEnabled(commands.byId(id), context);
+        });
     }
 
     /**
@@ -144,6 +136,7 @@
         REFUSED: REFUSED,
         ROWS: ROWS,
         BUTTONS: BUTTONS,
+        PANEL_COMMANDS: PANEL_COMMANDS,
         isInPlm: isInPlm,
         rowsFor: rowsFor,
         headline: headline,
