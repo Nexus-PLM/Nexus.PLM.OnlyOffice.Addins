@@ -44,7 +44,7 @@
     /** The type the browsers are rooted at, so only documents are offered. */
     var ROOT_BASE_TYPE = "DocumentsBase";
 
-    var ADDIN_VERSION = "0.1.0";
+    var ADDIN_VERSION = "0.2.0";
 
     /**
      * How often to tell the service we are still here.
@@ -169,6 +169,11 @@
      */
     Client.prototype.command = function (endpoint, body) {
         return this._call("POST", endpoint, body || { hwnd: 0 });
+    };
+
+    /** Every markup PLM holds for the item: {"success": bool, "markups": [...]}. */
+    Client.prototype.markups = function (itemId) {
+        return this._call("GET", "/plm/markup?item_id=" + encodeURIComponent(itemId || ""));
     };
 
     /** Every folder the signed-in user may read, for the navigator. */

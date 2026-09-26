@@ -52,21 +52,75 @@ only the docs will not understand why this plugin needs it. Confirmed in ONLYOFF
 **Still a prediction, not a measurement:** Docs in a browser over https, where the page is `https:`
 and `http://localhost:5100` is mixed content that no CORS or scheme change fixes.
 
-## The next slice: which file the editor has open
+## The tab, the file and the shell — measured, Desktop Editors 9.4.0, Sep 25 2026
 
-The panel currently reports every document as not in PLM because it does not know the file. What
-is known so far, from ONLYOFFICE's own docs and source rather than from guessing:
+Every "because ONLYOFFICE does X" below was observed, not reasoned. Where a first guess was wrong
+the wrong guess is recorded too, so nobody repeats it.
 
-- **`Asc.plugin.info` does not carry it.** Its documented fields are `data`, `editorType`, `guid`,
-  `height`, `imgSrc`, `mmToPx`, `objectId`, `recalculate`, `resize`, `width`. No name, path or URL.
-- **The lead worth following is `initDataType: "desktop-external"`** — "the main page data of the
-  desktop app (system messages)". It is what ONLYOFFICE's own **encryption** plugins declare, and
-  those work against local documents; there is a doc page, `desktop-editors/get-started/
-  how-it-works/encrypting-local-documents`. A second variation can declare it, since variations do
-  not all have to be alike — only all three editors have to be served.
+**The tab lives in a `type: "background"` variation.** The SDK (`CPluginVariation` in
+`sdk-all-min.js`) maps `type: "background"` to `PluginType.Background` — resident, listed under
+Plugins → Background plugins, started with every document unless the user stops it. A variation
+with **no `type` and `isVisual: false` is `PluginType.Invisible`**: a one-shot action torn down as
+soon as `init` returns. Its tab survived that with nothing behind it, which is why the tab used to
+draw and then do nothing. The shipped AI plugin is the model. Clicks arrive through
+`attachToolbarMenuClickEvent`; `UpdateToolbarMenuItem` with the same payload changes text, hint,
+enabled state and menus of the buttons already drawn — never their icons.
 
-Do not invent a mechanism here. Read the encryption plugins first: they are the ones already
-solving "a plugin that needs to know about the local file".
+**What a tab item can be** (from web-apps' `Common.UI.LayoutManager.addCustomControls`):
+`type: "big-button"`, `separator: true` (a new group), `split: true` + `items: [{id, text}]` (a
+menu; each entry clicks under its own id), `enableToggle`, `disabled`, `lockInViewMode`. A
+disabled button greys its menu with it, so nothing may be nested under a button whose rule is
+looser than its own — a test holds that. Captions drop off the later buttons when the window is
+narrow; that is the editor's overflow, not a bug of ours.
+
+**Icons:** a PATTERN, `icons/%theme-type%(light|dark)/<id>%scale%(default).png`. `default`
+means 100, 125, 150, 175 and 200 percent and the editor names the files itself (`x.png`,
+`x@1.25x.png`, `x@1.5x.png`, `x@1.75x.png`, `x@2x.png`; `Common.UI.iconsStr2IconsObj`). Big
+buttons are 28px at 100%. `tools/make-icons.py` writes exactly that set from the 80px originals.
+
+**Which file is open:** `Asc.plugin.info.documentTitle` — undocumented, present, the file's name.
+The service resolves a staged file by its name (the part number), so the name alone answers
+`/plm/state`. The **path** comes from the desktop shell's tool interface, the one the shipped AI
+agent plugin uses: `AscDesktopEditor.callToolFunction("recent_files_reader")` lists every
+recently opened file with its full path, open ones first; `lib/paths.js` remembers what the
+service staged as the fallback. What does NOT work from a plugin frame, each tried:
+`LocalFileGetSourcePath` / `LocalFileGetSaved` / `LocalFileGetOpenChangesCount` (answer for the
+frame that opened the file, not this one), the `onupdaterecents` callback (never arrives),
+`LocalFileOpen(path)` and `execCommand("open:recent", ...)` (accepted, open nothing), and any
+shell or editor object from a `callCommand` script (that sandbox has `Api` and nothing else).
+
+**Opening a staged file:** `callToolFunction("file_opener", {"path": ...})` — a new editor tab,
+with its own copy of this plugin, which finds its item by name. Nothing about the opened file is
+remembered in the tab that asked for it.
+
+**Saving before an upload:** the builder's `Api.Save()` from a `callCommand` script writes the
+local file (the file's timestamp moves). Whether the document is dirty cannot be read, so it is
+asked for before every upload, as Word saves before every upload.
+
+**Values, and the template syntax this host needs.** Measured in ONE document carrying all four
+kinds side by side, after Refresh Values:
+
+| in the template | what ONLYOFFICE showed | why |
+|---|---|---|
+| content control tagged `NXPartNumber` | the value, at once | the builder writes its text; Word and the Vault's `WordTemplateConnector` read it by tag, then alias |
+| `{ ADDIN NXCreatedBy }` | the value, at once | ONLYOFFICE's own plugin field: `GetAllAddinFields` lists it as `{FieldId, Value: "NXCreatedBy", Content}`, `UpdateAddinFields` re-displays it. Typed as `ADDIN NXCreatedBy` in Insert → Field. Word shows its cached text. The Vault does not read ADDIN yet |
+| `{ MERGEFIELD NXRevision }` | unchanged | the SDK parses it but refreshes it only by mail merge, which makes merged copies; the builder's `LoadMailMergeData` + `MailMerge` changed nothing in place and left a stray paragraph |
+| `{ DOCPROPERTY NXPartNumber }` | unchanged | not a field type ONLYOFFICE parses (its Insert → Field list: ASK, DATE, formula, HYPERLINK, MERGEFIELD, NOTEREF, NUMPAGES, PAGE, PAGEREF, REF, SEQ, STYLEREF, TIME, TOC); `STRING \@"..."` is no field anywhere |
+
+`GetCustomProperties().Add` writes the property and `Get` reads it back in every case; only the
+display differs. Do NOT call `UpdateAllFields` after writing: it turns a DOCPROPERTY field into
+"Error! Reference source not found" (measured). Only what the type's Data Model → Templates
+section maps comes back at all: n5EMICAR answered seven attributes, and
+`NXDocumentClassification` was not among them because its mapping is document → PLM. The
+existing n5EMICAR template is DOCPROPERTY-based, so it needs re-authoring with content controls
+(or ADDIN fields) to show values in ONLYOFFICE; it keeps working in Word as it is.
+
+**Driven end to end on the tab, against the running service:** Sign In, Connection Status, Open
+(dialog → staged file → new tab), Check In (save → upload → dialog → toast → state → tab
+re-drawn), Check Out, Edit Values (dialog), Refresh Values (7 values written), Navigator (docks
+left, buttons follow the state). Not yet exercised: New, Search, Save As, Save As Existing,
+Release, Revise, Reload Document, Change Ownership, Markup, Apply markups, Worklist, New Workflow,
+Properties, Settings, About — their bodies and follow-through are tested, not driven.
 
 ## Rules carried over from the other add-ins
 
@@ -106,8 +160,11 @@ npm test          # node --test, no install, no framework, no editor
 ```
 
 Everything that can be decided without an editor belongs in `plugin/lib/` where the tests reach
-it — which rows, which buttons are live, what to say when PLM has never seen the document.
-`plugin.js` and `ui.js` are the glue that cannot be tested that way and are deliberately dull.
+it — which commands exist and when (`commands.js`), the tab payload (`toolbar.js`), what to do
+with an answer (`host.js`), comments to markups and back (`markup.js`), where a file is
+(`paths.js`), the panel (`panel.js`). `editor.js` (the editor and the desktop shell), `runner.js`
+(the one path a press takes, shared by the tab and the panel), `background.js`, `ui.js` and
+`plugin.js` are the glue that cannot be tested that way and are deliberately dull.
 
 ## Branches
 

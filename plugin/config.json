@@ -2,14 +2,14 @@
   "name": "Nexus PLM",
   "nameLocale": {},
   "guid": "asc.{A8F3C512-7D64-4E1B-9C2A-6B0E5D831F47}",
-  "version": "0.1.0",
-  "minVersion": "7.0.0",
+  "version": "0.2.0",
+  "minVersion": "8.2.0",
   "baseUrl": "",
   "_comment_onlyofficeScheme": "Load this plugin under the editor's own onlyoffice:// scheme instead of file://. Measured on Desktop Editors 9.4.0: without it the page has an OPAQUE origin (file://) and every fetch and XMLHttpRequest to the Addin Service fails. The three shipped plugins that make network calls - AI, AI agent and DeepL - are the only ones that set this, and sdk-all.js rewrites baseUrl to onlyoffice://plugin/<path> when they do.",
   "onlyofficeScheme": true,
   "variations": [
     {
-      "_comment": "FIRST on purpose. ONLYOFFICE labels the first variation 'Start' in the plugin's dropdown and turns it into 'Stop' once it is running - it supplies that UI itself, which is why there is no Start or Stop variation here. Checked against LanguageTool, whose dropdown is exactly Start + About. Starting this one puts the Nexus PLM tab in the ribbon and keeps it there: a visual variation is unloaded when its window closes and takes its tab with it, measured on 9.4.0.",
+      "_comment": "FIRST, and typed 'background'. The type is what makes it resident: the SDK (sdk-all-min.js, CPluginVariation) maps 'background' to PluginType.Background, and a variation with no type and isVisual false to PluginType.Invisible - a one-shot action whose frame is torn down as soon as init returns, which is why the tab used to draw and then do nothing. The editor lists a Background plugin under Plugins > Background plugins, starts it with the document unless the user has stopped it, and keeps its frame alive for as long as the document is open. That frame puts the Nexus PLM tab in the ribbon and runs what the user presses on it. Modelled on the AI plugin shipped with Desktop Editors 9.4.0, the only shipped plugin that adds a tab.",
       "description": "Nexus PLM",
       "url": "background.html",
       "icons": [
@@ -22,6 +22,7 @@
         "cell",
         "slide"
       ],
+      "type": "background",
       "isVisual": false,
       "isModal": false,
       "isInsideMode": false,
@@ -34,24 +35,29 @@
         0
       ],
       "initOnSelectionChanged": false,
-      "events": []
+      "events": [
+        "onToolbarMenuClick"
+      ]
     },
     {
-      "description": "Open panel",
+      "_comment": "The Navigator: what PLM knows about the open document, with the everyday commands within reach. Word docks it beside the document; typed 'panel' so ONLYOFFICE docks it the same way. Opened from the Navigator button on the tab, or from this plugin's own menu under Background plugins.",
+      "description": "Navigator",
       "url": "index.html",
       "icons": [
-        "icons/light/icon.png",
-        "icons/light/icon@2x.png"
+        "icons/light/navigator.png",
+        "icons/light/navigator@2x.png"
       ],
-      "isViewer": false,
+      "isViewer": true,
       "EditorsSupport": [
         "word",
         "cell",
         "slide"
       ],
+      "type": "panel",
       "isVisual": true,
       "isModal": false,
       "isInsideMode": false,
+      "isCanDocked": true,
       "initDataType": "none",
       "initData": "",
       "isUpdateOleOnResize": false,
@@ -61,8 +67,7 @@
         500
       ],
       "initOnSelectionChanged": false,
-      "events": [],
-      "_comment": "The docked panel. Reached from the tab's Navigator button, and offered here too so it is never unreachable if the tab has not been started."
+      "events": []
     },
     {
       "_comment": "Last, where every plugin shipped with Desktop Editors puts About. It shows the service's own About window, so the version and the server are reported the same way in every Nexus host.",
