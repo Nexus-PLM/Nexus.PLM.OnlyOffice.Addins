@@ -144,10 +144,36 @@ test("Revise with a staged file opens the new revision beside this one and says 
     assert.match(effects[1].message, /Revision C/);
 });
 
+test("Revise whose file IS this document makes this document the new revision, in place", () => {
+    // The service answers the item's recorded path; for a document registered from where it
+    // sits (Save As) that is the open file, and opening it again opens nothing (measured).
+    const here = { user: "admin", doc: { title: "Spec.docx", path: "C:\\work\\Spec.docx" } };
+    const effects = host.effectsFor(by("revise"),
+        { success: true, item_id: "rev-3", revision: "B", file_path: "c:\\WORK\\spec.docx", checked_out: true, attribute_mappings: { NXRevision: "B" } }, here);
+    assert.deepStrictEqual(types(effects), [host.BIND, host.VALUES, host.SAY]);
+    assert.strictEqual(effects[0].revision, "B");
+    assert.strictEqual(effects[0].owner, "admin");
+    assert.match(effects[2].message, /now revision B, checked out to you/);
+});
+
+test("when the document's path is unknown, the file's name decides whether it is this document", () => {
+    const byName = { user: "admin", doc: { title: "NX1.docx", path: null } };
+    assert.ok(host.isThisDocument("C:\\Nexus\\Staging\\NX1.docx", byName.doc));
+    assert.ok(!host.isThisDocument("C:\\Nexus\\Staging\\NX2.docx", byName.doc));
+    assert.ok(!host.isThisDocument("C:\\x\\NX1.docx", { title: "NX1.docx", path: "C:\\y\\NX1.docx" }), "a known path is compared as a path");
+});
+
+test("Reload onto this very file says to close and reopen, and does not open a second copy", () => {
+    const here = { user: "admin", doc: { title: "NX1.docx", path: "C:\\Nexus\\Staging\\NX1.docx" } };
+    const effects = host.effectsFor(by("reload_document"), { success: true, file_path: "C:\\Nexus\\Staging\\NX1.docx", revision: "B" }, here);
+    assert.deepStrictEqual(types(effects), [host.BIND, host.SAY]);
+    assert.match(effects[1].message, /Close this tab/);
+});
+
 test("Revise with no file makes this document the new revision, checked out to me", () => {
     const effects = host.effectsFor(by("revise"),
         { success: true, item_id: "rev-3", revision: "C", checked_out: true, attribute_mappings: { Rev: "C" } }, ME);
-    assert.deepStrictEqual(types(effects), [host.BIND, host.VALUES]);
+    assert.deepStrictEqual(types(effects), [host.BIND, host.VALUES, host.SAY]);
     assert.strictEqual(effects[0].status, "checked_out");
     assert.strictEqual(effects[0].owner, "admin");
 });
@@ -170,6 +196,9 @@ test("Reload Document opens the current version beside this one, because a plugi
 });
 
 test("Settings says when a restart is needed, and is otherwise silent", () => {
+    // The Settings answer carries no `success` at all - {saved, restart_required} - and used
+    // to be reported as no response (measured on the tab).
+    assert.deepStrictEqual(host.effectsFor(by("settings"), { saved: false, httpStatus: 200 }, ME), []);
     assert.deepStrictEqual(host.effectsFor(by("settings"), { saved: true, success: true }, ME), []);
     const effects = host.effectsFor(by("settings"), { saved: true, success: true, restart_required: true }, ME);
     assert.match(effects[0].message, /restarted/);
