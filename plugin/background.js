@@ -30,13 +30,29 @@
     /** Attached once: button ids never change, and attaching twice runs a command twice. */
     var handlersAttached = false;
 
+    /** The heartbeat timer, so it can be stopped when the document closes. */
+    var beat = null;
+
     window.Asc = window.Asc || {};
     window.Asc.plugin = window.Asc.plugin || {};
 
     window.Asc.plugin.init = function () {
+        // Register with the tray first, so Nexus lists this host as connected the way it lists
+        // Word and FreeCAD. Without it the plugin works but is invisible - which is exactly how
+        // it looked: a tab full of commands and nothing in the tray.
+        client.connect();
+        beat = window.setInterval(function () { client.heartbeat(); }, clientModule.HEARTBEAT_MS);
+
         draw();
         refresh();
     };
+
+    /** Tell the tray we have gone, rather than leaving it to time us out. */
+    window.Asc.plugin.onExternalMouseUp = function () {};
+    window.addEventListener("unload", function () {
+        if (beat) { window.clearInterval(beat); beat = null; }
+        client.disconnect();
+    });
 
     /** The document changed under us, so what the commands may do may have changed too. */
     window.Asc.plugin.onDocumentContentReady = function () {
@@ -56,9 +72,10 @@
      */
     function draw() {
         try {
-            window.Asc.plugin.executeMethod(
-                "AddToolbarMenuItem", [toolbar.tab(window.Asc.plugin.guid, context)]);
-
+            // Handlers FIRST, then the tab. That is the order ONLYOFFICE's own helper uses in
+            // plugins-ui.js — it attaches every button's onclick and only then calls
+            // AddToolbarMenuItem. Attaching afterwards left every button doing nothing at all:
+            // the tab drew, the clicks went nowhere, and no request ever reached the service.
             if (!handlersAttached) {
                 commands.COMMANDS.forEach(function (command) {
                     window.Asc.plugin.attachToolbarMenuClickEvent(
@@ -67,6 +84,9 @@
                 });
                 handlersAttached = true;
             }
+
+            window.Asc.plugin.executeMethod(
+                "AddToolbarMenuItem", [toolbar.tab(window.Asc.plugin.guid, context)]);
         } catch (e) {
             // Nothing here can show a message — there is no window. The tab simply does not
             // appear, and the panel still works.
@@ -105,22 +125,35 @@
         if (command.id === "navigator") { showPanel(); return; }
         if (command.id === "help") { openHelp(); return; }
 
-        var body = { hwnd: 0 };
-        if (commands.needsDocument(command) && context.state) {
-            body.item_id = context.state.item_id;
-        }
+        var body = commands.bodyFor(command, context);
+        if (body === null) { reportConnection(); return; }
 
         client.command(command.endpoint, body).then(function (answer) {
-            if (answer && answer.success === false && answer.error) { say(answer.error); }
+            if (answer && answer.unreachable) { say(answer.error, "error"); return; }
+            if (answer && answer.success === false && answer.error) { say(answer.error, "warning"); }
+            // Whatever it did, the document's state may have moved underneath us.
             refresh();
         });
     }
 
-    /** Say something through the service's own toast, so it looks like it does in every host. */
-    function say(message) {
+    /** Say something through the tray's own toast, so it looks like it does in every host. */
+    function say(message, severity) {
         if (!message) { return; }
-        try { client.notify(message, "warning"); }
+        try { client.notify(message, severity || "info"); }
         catch (e) { window.console && window.console.log(message); }
+    }
+
+    /** Connection Status has no dialog of its own: it reports what we can see from here. */
+    function reportConnection() {
+        client.health().then(function (answer) {
+            if (answer && answer.unreachable) {
+                say(answer.error, "error");
+            } else if (context.signedIn) {
+                say("Connected to Nexus PLM, signed in as " + context.user + ".", "success");
+            } else {
+                say("Connected to Nexus PLM. Not signed in.", "info");
+            }
+        });
     }
 
     /** Open the panel — this variation has no window of its own to show. */

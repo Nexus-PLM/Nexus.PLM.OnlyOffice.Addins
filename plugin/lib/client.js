@@ -38,6 +38,22 @@
     /** A document has no assembly to load; that panel is the CAD flow bleeding in. */
     var STAGE_ASSEMBLY = false;
 
+    /** What this host calls itself, in the tray and in the service's own windows. */
+    var HOST_NAME = "ONLYOFFICE";
+
+    /** The type the browsers are rooted at, so only documents are offered. */
+    var ROOT_BASE_TYPE = "DocumentsBase";
+
+    var ADDIN_VERSION = "0.1.0";
+
+    /**
+     * How often to tell the service we are still here.
+     *
+     * It drops an addin it has not heard from for 45 seconds, so this has to be comfortably
+     * under that - twice inside the window, so one missed beat is not a disconnection.
+     */
+    var HEARTBEAT_MS = 20000;
+
     /** The header the service reads the per-install secret from. */
     var SECRET_HEADER = "X-Nexus-Addin";
 
@@ -94,6 +110,45 @@
 
     Client.prototype.health = function () { return this._call("GET", "/api/health"); };
 
+    // ── the tray ─────────────────────────────────────────────────────────────
+
+    /**
+     * Register with the tray, so Nexus knows this host is running.
+     *
+     * Every host does this - Word, FreeCAD, LibreOffice - and it is why the tray can list what is
+     * connected. Without it the plugin works but is invisible: nothing in the tray, and no way for
+     * a user to tell whether it is running at all.
+     */
+    Client.prototype.connect = function () {
+        return this._call("POST", "/api/addins/connect",
+            { name: HOST_NAME, version: ADDIN_VERSION });
+    };
+
+    /** Still here. The service drops an addin it has not heard from for 45 seconds. */
+    Client.prototype.heartbeat = function () {
+        return this._call("POST", "/api/addins/heartbeat", { name: HOST_NAME });
+    };
+
+    Client.prototype.disconnect = function () {
+        return this._call("POST", "/api/addins/disconnect", { name: HOST_NAME });
+    };
+
+    /**
+     * Say something through the tray's own toast.
+     *
+     * The same toast every other host raises, so a refusal here looks like a refusal in Word
+     * rather than like something this plugin invented.
+     */
+    Client.prototype.notify = function (message, severity) {
+        return this._call("POST", "/api/notification", {
+            title: "Nexus PLM",
+            description: message,
+            severity: severity || "info",
+            is_dismissible: true,
+            auto_dismiss_after_seconds: 5
+        });
+    };
+
     /** Who is signed in: {"success": bool, "username": ...}. */
     Client.prototype.me = function () { return this._call("GET", "/api/auth/me"); };
 
@@ -135,6 +190,10 @@
         SECRET_HEADER: SECRET_HEADER,
         DEFAULT_BASE_URL: DEFAULT_BASE_URL,
         FILE_EXTENSIONS: FILE_EXTENSIONS,
-        STAGE_ASSEMBLY: STAGE_ASSEMBLY
+        STAGE_ASSEMBLY: STAGE_ASSEMBLY,
+        HOST_NAME: HOST_NAME,
+        ROOT_BASE_TYPE: ROOT_BASE_TYPE,
+        ADDIN_VERSION: ADDIN_VERSION,
+        HEARTBEAT_MS: HEARTBEAT_MS
     };
 }));

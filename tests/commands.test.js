@@ -219,3 +219,43 @@ test("an icon file is a real PNG, not an empty placeholder", () => {
     assert.ok(bytes.length > 100, "suspiciously small");
     assert.deepStrictEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
 });
+
+// ── what each command posts ──────────────────────────────────────────────────
+
+test("the browsers are told what this host can open and where to root", () => {
+    // Word posts these too. A command that posts the wrong body is answered, refused, and looks
+    // exactly like a command that did nothing at all.
+    for (const id of ["new", "open", "save_as_existing"]) {
+        const body = commands.bodyFor(commands.byId(id), IN);
+        assert.strictEqual(body.root_base_type, "DocumentsBase", id);
+        assert.match(body.file_extensions, /\.docx/, id);
+    }
+    assert.strictEqual(commands.bodyFor(commands.byId("open"), IN).stage_assembly, false,
+        "a document has no assembly to load");
+});
+
+test("every item command carries the item", () => {
+    const context = { signedIn: true, user: "admin",
+                      state: { status: "checked_in", item_id: "rev-1", file_path: "C:/x.docx" } };
+    for (const id of ["check_out", "release", "revise", "properties", "edit_values",
+                      "refresh_values", "reload_document", "new_workflow", "change_owner"]) {
+        assert.strictEqual(commands.bodyFor(commands.byId(id), context).item_id, "rev-1", id);
+    }
+});
+
+test("About names the host, so the service reports the right one", () => {
+    const body = commands.bodyFor(commands.byId("about"), IN);
+    assert.strictEqual(body.host_name, "ONLYOFFICE");
+    assert.ok(body.addin_version);
+});
+
+test("Connection Status posts nothing, because it is a report and not a command", () => {
+    assert.strictEqual(commands.bodyFor(commands.byId("connection"), IN), null);
+});
+
+test("every command that calls the service has a body for it", () => {
+    for (const c of commands.COMMANDS) {
+        if (!c.endpoint || c.id === "connection") { continue; }
+        assert.notStrictEqual(commands.bodyFor(c, IN), undefined, `${c.id} has no body`);
+    }
+});

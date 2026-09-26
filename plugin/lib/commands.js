@@ -19,9 +19,12 @@
  */
 
 (function (root, factory) {
-    if (typeof module === "object" && module.exports) { module.exports = factory(); }
-    else { root.NexusPlmCommands = factory(); }
-}(typeof self !== "undefined" ? self : this, function () {
+    if (typeof module === "object" && module.exports) {
+        module.exports = factory(require("./client.js"));
+    } else {
+        root.NexusPlmCommands = factory(root.NexusPlmClient);
+    }
+}(typeof self !== "undefined" ? self : this, function (client) {
     "use strict";
 
     /** The tab's name, as Word calls it. */
@@ -151,6 +154,66 @@
     }
 
     /**
+     * What to POST for this command.
+     *
+     * Not one shape for all of them: the browsers need to know what this host can open and what
+     * to root themselves at, and the item commands need the item. Taken from the WORD add-in,
+     * which is the most complete one and the one these endpoints were shaped around - a command
+     * that posts the wrong body is answered, refused, and looks exactly like a command that did
+     * nothing at all.
+     */
+    function bodyFor(command, context) {
+        var c = context || {};
+        var itemId = (c.state && c.state.item_id) || null;
+        var filePath = (c.state && c.state.file_path) || null;
+        var extensions = client.FILE_EXTENSIONS.join(";");
+
+        switch (command.id) {
+            case "sign_in":          return { hwnd: 0 };
+            case "sign_out":         return {};
+
+            case "new":              return { root_base_type: client.ROOT_BASE_TYPE, hwnd: 0,
+                                              host_name: client.HOST_NAME,
+                                              file_extensions: extensions };
+            case "open":             return { hwnd: 0, root_base_type: client.ROOT_BASE_TYPE,
+                                              file_extensions: extensions,
+                                              stage_assembly: client.STAGE_ASSEMBLY };
+            case "search":           return { root_base_type: client.ROOT_BASE_TYPE, hwnd: 0 };
+
+            case "save":             return { item_id: itemId, file_path: filePath };
+            case "save_as_new":      return { file_path: filePath, hwnd: 0, attributes: {} };
+            case "save_as_existing": return { file_path: filePath, hwnd: 0,
+                                              root_base_type: client.ROOT_BASE_TYPE,
+                                              file_extensions: extensions };
+
+            case "check_out":        return { item_id: itemId };
+            case "check_in":         return { item_id: itemId, file_path: filePath,
+                                              is_assembly: false, structure: [], joints: [],
+                                              saved_unsaved_changes: false };
+            case "release":          return { item_id: itemId };
+            case "revise":           return { item_id: itemId, hwnd: 0 };
+            case "change_owner":     return { item_id: itemId, file_path: filePath, hwnd: 0 };
+
+            case "worklist":         return { hwnd: 0 };
+            case "new_workflow":     return { item_id: itemId };
+
+            case "properties":       return { item_id: itemId, hwnd: 0 };
+            case "edit_values":      return { item_id: itemId, hwnd: 0, document_values: {} };
+            case "refresh_values":   return { item_id: itemId };
+            case "reload_document":  return { item_id: itemId };
+
+            case "settings":         return {};
+            case "about":            return { hwnd: 0, host_name: client.HOST_NAME,
+                                              addin_version: client.ADDIN_VERSION };
+
+            //: A GET, and the panel reports it; there is nothing to post.
+            case "connection":       return null;
+
+            default:                 return { hwnd: 0 };
+        }
+    }
+
+    /**
      * Why a command is greyed, for its tooltip — so a disabled button is never a dead end.
      * Null when it is not greyed.
      */
@@ -180,6 +243,7 @@
         DOCUMENT: DOCUMENT, CHECKED_IN: CHECKED_IN, MINE: MINE,
         COMMANDS: COMMANDS,
         GROUPS: GROUPS,
+        bodyFor: bodyFor,
         needsDocument: needsDocument,
         hostSupports: hostSupports,
         byId: byId,
