@@ -5,9 +5,12 @@
     <title>Nexus PLM</title>
 
     <!--
-        The Navigator panel's frame. ONLYOFFICE loads this page inside the editor, so there is no
-        bundler and no module loader: every file is a plain script tag, in dependency order, and
-        each one is UMD so the same file is what the tests require.
+        The Navigator's frame: the vault as a folder tree, docked beside the document — the same
+        pane Word docks through a WebView2 (`src/embed` in the React client).
+
+        ONLYOFFICE loads this page inside the editor, so there is no bundler and no module loader:
+        every file is a plain script tag, in dependency order, and each module is UMD so the same
+        file is what the tests require.
 
         plugins.js is served BY the editor, not by this plugin, and it is what defines
         window.Asc.plugin. It has to come first or Asc.plugin.init is registered on an object the
@@ -25,11 +28,29 @@
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <div id="nexus-plm-panel">
-        <h1 id="panel-title">Nexus PLM</h1>
-        <p id="panel-headline"></p>
-        <dl id="panel-rows"></dl>
-        <div id="panel-buttons"></div>
+    <div class="np-root">
+        <div class="np-search">
+            <input id="np-query" type="search" placeholder="Find by item ID…" aria-label="Find by item ID" />
+            <button id="np-refresh" class="np-icon-btn" title="Refresh" aria-label="Refresh">&#x21bb;</button>
+        </div>
+
+        <div id="np-error" class="np-error" hidden></div>
+
+        <div id="np-tree" class="np-tree" role="tree" aria-label="Folders"></div>
+
+        <div class="np-items" role="listbox" aria-label="Documents">
+            <div id="np-band" class="np-band-head">Select a folder</div>
+            <div id="np-list"></div>
+        </div>
+
+        <div class="np-actions">
+            <button id="np-open" disabled>Open</button>
+            <button id="np-checkout" disabled>Check Out</button>
+            <button id="np-checkin" disabled>Check In</button>
+            <button id="np-properties" disabled>Properties</button>
+        </div>
+
+        <div id="np-status" class="np-status-strip"></div>
     </div>
 
     <!--
@@ -52,6 +73,7 @@
     <script type="text/javascript" src="lib/paths.js"></script>
     <script type="text/javascript" src="lib/commands.js"></script>
     <script type="text/javascript" src="lib/panel.js"></script>
+    <script type="text/javascript" src="lib/navigator.js"></script>
     <script type="text/javascript" src="lib/toolbar.js"></script>
     <script type="text/javascript" src="lib/host.js"></script>
     <script type="text/javascript" src="lib/markup.js"></script>

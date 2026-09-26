@@ -40,7 +40,7 @@ function dependenciesOf(file) {
 /** What each glue file reads from window at load time — the globals the lib modules define. */
 const GLOBALS = {
     "lib/editors.js": "NexusPlmEditors", "lib/client.js": "NexusPlmClient", "lib/commands.js": "NexusPlmCommands",
-    "lib/paths.js": "NexusPlmPaths",
+    "lib/paths.js": "NexusPlmPaths", "lib/navigator.js": "NexusPlmNavigator",
     "lib/panel.js": "NexusPlmPanel", "lib/toolbar.js": "NexusPlmToolbar", "lib/host.js": "NexusPlmHost",
     "lib/markup.js": "NexusPlmMarkup", "editor.js": "NexusPlmEditor", "runner.js": "NexusPlmRunner", "ui.js": "NexusPlmUi"
 };
@@ -58,15 +58,15 @@ test("every page loads its modules in a workable order", () => {
     }
 });
 
-test("the working pages load every module the plugin has", () => {
+test("every module the plugin has is loaded by some page", () => {
     // A module nobody loads is one whose global is missing at runtime, which shows up as an
-    // empty panel or a dead tab rather than as an error.
+    // empty pane or a dead tab rather than as an error. Not every page needs every module -
+    // the folder tree is the panel's and the tab has no use for it - so the rule is that each
+    // one is loaded somewhere, and the test below holds each page to what it actually reads.
     const onDisk = fs.readdirSync(path.join(PLUGIN, "lib")).filter((f) => f.endsWith(".js")).map((f) => "lib/" + f);
-    for (const page of WORKING) {
-        const order = scriptsOf(page);
-        for (const file of onDisk) {
-            assert.ok(order.includes(file), `${file} is never loaded by ${page}`);
-        }
+    const loadedSomewhere = new Set(PAGES.flatMap(scriptsOf));
+    for (const file of onDisk) {
+        assert.ok(loadedSomewhere.has(file), `${file} is never loaded by any page`);
     }
 });
 

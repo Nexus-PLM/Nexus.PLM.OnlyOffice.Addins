@@ -12,8 +12,10 @@ and **Presentation**, without leaving the editor.
 > Desktop Editors 9.4.0, and the buttons do what they do in Word through the same Addin Service:
 > Sign In, Open (into a new tab), Check Out, Check In (the document is saved first), Edit Values,
 > Refresh Values and Connection Status have been driven end to end; the rest post the same bodies
-> Word does and are covered by tests rather than by a hand on the mouse yet. A docked Navigator
-> panel shows what PLM knows about the open document.
+> Word does and are covered by tests rather than by a hand on the mouse yet. A docked **Navigator**
+> browses the vault beside the document — the same folder tree, rows and four actions as Word's
+> pane — and it has been driven end to end too: Open, Check Out, Check In, Properties, search and
+> Refresh.
 
 ---
 
@@ -35,7 +37,7 @@ plugin/
   config.json        three variations, every one for all three editors:
                      the resident background half (the tab), the Navigator panel, About
   background.html/js the tab: drawn once, updated as the state changes, clicks handed to the runner
-  index.html, ui.js  the Navigator panel's frame and DOM
+  index.html, ui.js  the Navigator pane's frame and DOM, and nothing it decides for itself
   runner.js          the one path a press takes, whether from the tab or the panel
   editor.js          the editor and the desktop shell, as a plugin frame can reach them
   plugin.js          the Asc.plugin callbacks for the panel, and nothing else
@@ -45,7 +47,8 @@ plugin/
     host.js          the host's half of each command, as data (open this, write these values)
     markup.js        comments to review markups and back
     paths.js         where a staged file is, remembered by name
-    panel.js         what the panel shows - no ONLYOFFICE, no DOM
+    navigator.js     the Navigator's model: the tree, and what may be done to the row you pick
+    panel.js         what the pane says when it cannot show the vault - no ONLYOFFICE, no DOM
     editors.js       the three editors and the only places they differ
     client.js        talking to the Nexus PLM Addin Service
   icons/             light and dark, five scales each, from the add-in family's own art
@@ -58,6 +61,25 @@ tests/               node --test, no editor and no browser needed
 The measured facts behind the tab, the file and the shell — what works from a plugin frame and
 what only looked like it should — are in `CLAUDE.md`, so that they are read before anything here
 is changed.
+
+## The Navigator
+
+Docked beside the document, the same pane Word carries: a folder tree on top, the chosen folder's
+documents below, and four buttons that act on the row you pick — Open, Check Out, Check In,
+Properties. It is the vault, not the open file: everything it shows and does is about the selected
+row, so Properties on a search hit opens that hit, not the document you happen to be editing.
+
+The tree, the rows, the band heading and which buttons are live are all decided in
+`plugin/lib/navigator.js`, where the tests reach them without an editor and without a browser.
+`ui.js` only draws what it is told. The search box waits for two characters and 300 ms before it
+asks the service, which are Word's numbers.
+
+**One rule differs from Word's pane, and deliberately.** Check In needs your own lock *and* that
+document open in this tab, because the service uploads a working copy and this host only has a path
+for the document its frame is docked to. Word's pane enables the button on the lock alone and then
+refuses the press with a toast — "is checked out to you but is not open here. Open it first, then
+check it in." Here that same sentence is the disabled button's tooltip, so it arrives before the
+click is spent rather than after.
 
 ## It needs the Addin Service
 

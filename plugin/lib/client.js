@@ -182,12 +182,47 @@
         return this._call("GET", "/plm/markup?item_id=" + encodeURIComponent(itemId || ""));
     };
 
-    /** Every folder the signed-in user may read, for the navigator. */
-    Client.prototype.folders = function () { return this._call("GET", "/plm/navigation/folders"); };
+    // ── the Navigator's reads ────────────────────────────────────────────────
+    // All four are scoped by what this host can open, so a folder's count and a folder's
+    // contents mean "documents you could actually open from here".
+    //
+    // NOTE the separator: these take `extensions` and split it on a COMMA only
+    // (NavigationScope.From), while the command endpoints take `file_extensions` and split on
+    // ';' or ','. Joining this one with semicolons makes the whole list a single bogus
+    // extension, and every folder then counts zero.
 
-    /** What is in one folder. */
-    Client.prototype.folderItems = function (folderId) {
-        return this._call("GET", "/plm/navigation/folders/" + encodeURIComponent(folderId) + "/items");
+    /** The scope every navigation read carries, as its query string. */
+    function scopeQuery(refresh) {
+        return "root_base_type=" + encodeURIComponent(ROOT_BASE_TYPE) +
+               "&extensions=" + encodeURIComponent(FILE_EXTENSIONS.join(",")) +
+               (refresh ? "&refresh=true" : "");
+    }
+
+    /** The folder tree, scoped to what this host can open. */
+    Client.prototype.folders = function (refresh) {
+        return this._call("GET", "/plm/navigation/folders?" + scopeQuery(refresh));
+    };
+
+    /** The documents in one folder, latest revision each. */
+    Client.prototype.folderItems = function (folderId, refresh) {
+        return this._call("GET", "/plm/navigation/folders/" +
+            encodeURIComponent(folderId) + "/items?" + scopeQuery(refresh));
+    };
+
+    /** Part-number search, for the pane's item-ID box. */
+    Client.prototype.lookup = function (query) {
+        return this._call("GET", "/plm/navigation/lookup?q=" + encodeURIComponent(query || "") +
+            "&root_base_type=" + encodeURIComponent(ROOT_BASE_TYPE));
+    };
+
+    /**
+     * Download one object's primary dataset into staging and answer where it landed, so the pane
+     * can open a document it only knows by id. `/plm/open` cannot help: it raises the browser and
+     * takes no id.
+     */
+    Client.prototype.stage = function (plmObjectId) {
+        return this._call("POST", "/plm/navigation/stage",
+            { plm_object_id: plmObjectId, root_base_type: ROOT_BASE_TYPE });
     };
 
     /** Whether this plugin has been given the secret it needs to be trusted as local. */
