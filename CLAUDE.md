@@ -122,12 +122,18 @@ keeps it across switching to another application and back, so this costs one cli
 one per visit. Nothing in the page can fix it: the click is consumed above the frame. It is worth
 knowing because it looks exactly like a dead click handler, and half an hour went into that.
 
-**Driven end to end on the tab, against the running service:** Sign In, Connection Status, Open
-(dialog → staged file → new tab), Check In (save → upload → dialog → toast → state → tab
-re-drawn), Check Out, Edit Values (dialog), Refresh Values (7 values written). Not yet exercised:
-New, Search, Save As, Save As Existing, Release, Revise, Reload Document, Change Ownership, Markup,
-Apply markups, Worklist, New Workflow, Properties, Settings, About — their bodies and
-follow-through are tested, not driven.
+**Every command on the tab has been driven end to end against the running service.** Sign In,
+Connection Status, New, Open, Save, Save As, Save As Existing, Search, Properties, Check Out,
+Check In, Revise, Change Ownership, Markup, Apply markups, Worklist, New Workflow, Edit Values,
+Refresh Values, Reload Document, Settings, About and Navigator. The three faults that run found
+are fixed and recorded in the commits that fixed them.
+
+**There is no Release, on purpose** (Marc, Sep 26 2026). A revision reaches Released only by
+running a workflow. The command wrote the lifecycle status straight onto the revision through the
+service's generic attribute write, which went around every approval the workflow declares — and
+neither the web client nor the WPF client has ever offered it, so the add-ins were the odd ones
+out. New Workflow is the way in: the workflow's Status node sets the status through the Engine's
+side-effect processor. Do not add it back without changing that decision first.
 
 **Driven end to end in the Navigator pane:** docks left; the tree nests, expands on its twisties
 and carries its badges; picking a folder lists it; picking a row lights exactly the actions its

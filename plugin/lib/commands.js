@@ -98,13 +98,16 @@
 
         // ── Tasks ────────────────────────────────────────────────────────────
         //: Word shows Check Out and Check In as one split button whose label follows the state,
-        //: with Release and Revise in its menu. Here every one is its own button: ONLYOFFICE greys
-        //: a split button's menu with the button, and Release must stay reachable while Check In
-        //: is not (it needs the document checked IN). The enable rules do the same job as Word's
-        //: label switch without a control that lies about which half you pressed.
+        //: with Revise in its menu. Here every one is its own button: ONLYOFFICE greys a split
+        //: button's menu with the button, and the enable rules do the same job as Word's label
+        //: switch without a control that lies about which half you pressed.
+        //: There is deliberately no Release. A revision reaches Released only by running a
+        //: workflow, which is what New Workflow below is for: the workflow's Status node sets the
+        //: lifecycle through the Engine's side-effect processor, with the approvals the workflow
+        //: declares. The old Release command wrote the status straight onto the revision and so
+        //: went around every one of them. The web client has never offered it either.
         { id: "check_out",        label: "Check Out",             group: "Tasks",               endpoint: "/plm/checkout",         when: CHECKED_IN },
         { id: "check_in",         label: "Check In",              group: "Tasks",               endpoint: "/plm/checkin",          when: MINE, saves: true },
-        { id: "release",          label: "Release",               group: "Tasks",               endpoint: "/plm/release",          when: CHECKED_IN },
         { id: "revise",           label: "Revise",                group: "Tasks",               endpoint: "/plm/revise",           when: DOCUMENT },
         //: Markup sends this document's comments to PLM as review markups; its menu brings every
         //: reviewer's markups back in as comments — the same pair as Word's split button.
@@ -252,7 +255,6 @@
             case "check_in":         return { item_id: itemId, file_path: filePath,
                                               is_assembly: false, structure: [], joints: [],
                                               saved_unsaved_changes: false };
-            case "release":          return { item_id: itemId };
             //: The entries are the document's comments, which only the editor can read; the
             //: runner fills them in. The rest is what the service wants to know about the sender.
             case "markup":           return { item_id: itemId, host: client.HOST_NAME,

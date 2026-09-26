@@ -7,12 +7,11 @@ Product lifecycle management from inside the ONLYOFFICE editors. Check a documen
 PLM knows about it, edit its attributes and check it back in — in **Document**, **Spreadsheet**
 and **Presentation**, without leaving the editor.
 
-> **Status: the Nexus PLM tab is in the ribbon and runs.** Word's tab — its seven groups, all 26
+> **Status: the Nexus PLM tab is in the ribbon and runs.** Word's tab — its seven groups, its
 > commands, split-button menus and icons — sits in the ribbon of all three editors in ONLYOFFICE
-> Desktop Editors 9.4.0, and the buttons do what they do in Word through the same Addin Service:
-> Sign In, Open (into a new tab), Check Out, Check In (the document is saved first), Edit Values,
-> Refresh Values and Connection Status have been driven end to end; the rest post the same bodies
-> Word does and are covered by tests rather than by a hand on the mouse yet. A docked **Navigator**
+> Desktop Editors 9.4.0, and every button has been driven end to end against the Addin Service.
+> The one command Word has and this does not is **Release**: a revision reaches Released only by
+> running a workflow, which New Workflow starts. A docked **Navigator**
 > browses the vault beside the document — the same folder tree, rows and four actions as Word's
 > pane — and it has been driven end to end too: Open, Check Out, Check In, Properties, search and
 > Refresh.
