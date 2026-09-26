@@ -68,9 +68,22 @@ test("every command either calls the service or is explicitly local", () => {
 
 // ── when a command may be pressed ────────────────────────────────────────────
 
-test("signed out, only the things that report or explain are live", () => {
+test("signed out, what is live is what Word leaves live", () => {
+    // The informational commands, and the five that are how you GET a document - pressing one
+    // of those signs you in first, as Word's handlers do. Nothing item-scoped: with no session
+    // there is no state, and a command that needs the item would only be refused.
     const live = commands.COMMANDS.filter((c) => commands.isEnabled(c, OUT)).map((c) => c.id);
-    assert.deepStrictEqual(live.sort(), ["about", "connection", "help", "navigator", "sign_in"]);
+    assert.deepStrictEqual(live.sort(), [
+        "about", "connection", "help", "navigator", "new", "open", "search", "settings",
+        "sign_in", "worklist"
+    ]);
+});
+
+test("a command offered signed out still needs a session to run, and says so", () => {
+    for (const id of ["new", "open", "search", "worklist", "settings"]) {
+        assert.ok(commands.sessionOptional(commands.byId(id)), id);
+        assert.ok(commands.needsSession(commands.byId(id)), id);
+    }
 });
 
 test("signing in lights up everything that does not need the document", () => {
@@ -119,6 +132,14 @@ test("New Workflow and Release want the document checked in, as Word refuses the
         assert.ok(!commands.isEnabled(commands.byId(id), MINE), id);
         assert.match(commands.disabledBecause(commands.byId(id), MINE), /Check the document in/);
     }
+});
+
+test("Reload Document is refused while the document is checked out to me, as Word refuses it", () => {
+    // A copy checked out to you is the newer one; reloading would throw your work away.
+    assert.ok(!commands.isEnabled(commands.byId("reload_document"), MINE));
+    assert.match(commands.disabledBecause(commands.byId("reload_document"), MINE), /your copy is the newer one/);
+    assert.ok(commands.isEnabled(commands.byId("reload_document"), CHECKED_IN));
+    assert.ok(commands.isEnabled(commands.byId("reload_document"), THEIRS), "someone else may have saved a newer version");
 });
 
 test("Edit Values needs the document checked out to me, as Word insists", () => {

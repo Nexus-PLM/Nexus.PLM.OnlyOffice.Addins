@@ -95,6 +95,17 @@
         function run(command) {
             if (!command || busy) { return; }
 
+            // Signed out, a command that needs a session climbs the ladder instead of refusing -
+            // what Word does, so one press signs in and then runs. `sign_in` itself is excluded:
+            // it IS the ladder.
+            if (!context.signedIn && commands.needsSession(command)) {
+                ensureSignedIn(function (signedIn) {
+                    if (signedIn) { run(command); }
+                    else { say("Sign in to Nexus PLM to use " + command.label + ".", "info"); }
+                });
+                return;
+            }
+
             // Never act on a command the rules say is unavailable. The tab greys it, but a stale
             // tab is one repaint away, and the service's refusal is indistinguishable from a bug.
             if (!commands.isEnabled(command, context)) {
@@ -119,6 +130,26 @@
                     client.command(command.endpoint, body).then(function (answer) {
                         carryOut(host.effectsFor(command, answer, context));
                         finish();
+                    });
+                });
+            });
+        }
+
+        /**
+         * Sign in, cheapest rung first, the way Word's SignInGate climbs: the session the service
+         * already holds, then the one saved on this machine (silent), then the dialog. Answers
+         * whether there is a session afterwards.
+         */
+        function ensureSignedIn(done) {
+            busy = true;
+            var finish = function (ok) { busy = false; refresh(function () { done(ok); }); };
+
+            client.me().then(function (me) {
+                if (me && me.success && me.username) { finish(true); return; }
+                client.autoLogin().then(function (restored) {
+                    if (restored && restored.success) { finish(true); return; }
+                    client.command("/api/auth/login", { hwnd: 0 }).then(function (signedIn) {
+                        finish(!!(signedIn && signedIn.success));
                     });
                 });
             });
