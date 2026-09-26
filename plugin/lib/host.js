@@ -49,6 +49,25 @@
         return { type: BIND, itemId: itemId, status: status, owner: owner || null, revision: revision || null };
     }
 
+    function baseName(path) {
+        var parts = String(path || "").split(/[\\/]/);
+        return parts[parts.length - 1] || "";
+    }
+
+    /**
+     * Whether a path the service answered with IS the open document. Revise hands back the
+     * item's recorded file path, and for a document registered from where it sits (Save As)
+     * that is the file already open; Reload downloads onto the same path. Opening it again
+     * opens nothing, so those answers are acted on in place instead - what Word does when the
+     * file it is told to open is the one in front of the user. Compared by full path when the
+     * document's path is known, by name otherwise.
+     */
+    function isThisDocument(path, doc) {
+        if (!path || !doc) { return false; }
+        if (doc.path) { return String(doc.path).toLowerCase() === String(path).toLowerCase(); }
+        return !!doc.title && baseName(path).toLowerCase() === String(doc.title).toLowerCase();
+    }
+
     /** Whether the answer says the user closed the dialog — their own decision, and no news. */
     function wasCancelled(answer) {
         return !!(answer && (answer.cancelled || CANCEL_WORDS.test(answer.error || "")));
@@ -107,9 +126,15 @@
     function effectsFor(command, answer, context) {
         var a = answer || {};
         var user = (context && context.user) || null;
+        var doc = (context && context.doc) || null;
         var out = [];
 
-        if (!a.success) {
+        // Not every answer carries `success`: Settings answers {saved, restart_required}.
+        // An answer with no verdict, no error and a 2xx status is one the service accepted.
+        var accepted = a.success === true ||
+                       (a.success === undefined && !a.error && !a.unreachable &&
+                        (a.httpStatus === undefined || a.httpStatus < 400));
+        if (!accepted) {
             if (wasCancelled(a)) { return out; }
             var report = unanswered(a, "No response from Nexus PLM for " + command.label + ".");
             if (report) { out.push(report); }
@@ -167,11 +192,12 @@
                 break;
 
             case "revise":
-                // With a staged file, the new revision opens beside this document and is its own
-                // document from then on. Without one, the document in front of the user IS the
-                // new revision now, and revising checked it out to them - marking it superseded
-                // greyed the very commands they revised in order to use.
-                if (a.file_path) {
+                // With a staged file elsewhere, the new revision opens beside this document and
+                // is its own document from then on. When the file is THIS one - or there is no
+                // file - the document in front of the user IS the new revision now, and revising
+                // checked it out to them; marking it superseded greyed the very commands they
+                // revised in order to use.
+                if (a.file_path && !isThisDocument(a.file_path, doc)) {
                     out.push(open(a.file_path));
                     out.push(say("Revision " + (a.revision || "") + " opened in a new tab. This tab still shows the revision it was.", "info"));
                     break;
@@ -180,6 +206,7 @@
                     out.push(bind(a.item_id, a.checked_out ? "checked_out" : "checked_in", a.checked_out ? user : null, a.revision));
                 }
                 if (a.attribute_mappings) { out.push(values(a.attribute_mappings)); }
+                out.push(say("This document is now revision " + (a.revision || "") + (a.checked_out ? ", checked out to you." : "."), "info"));
                 break;
 
             case "edit_values":
@@ -194,8 +221,15 @@
 
             case "reload_document":
                 // Word closes the document and reopens what came down. A plugin cannot close the
-                // document it lives in, so the current version opens beside it and says so.
+                // document it lives in. Downloaded elsewhere, the current version opens beside
+                // it; downloaded onto this very file, the editor keeps showing what it loaded,
+                // so the user is told to close and reopen.
                 if (!a.file_path) { out.push(say("Could not download the document from Nexus PLM.", "error")); break; }
+                if (isThisDocument(a.file_path, doc)) {
+                    out.push(bind(null, "checked_in", a.checked_out_by || null, a.revision));
+                    out.push(say("The version in Nexus PLM has been downloaded over this file. Close this tab without saving and open the file again to see it.", "info"));
+                    break;
+                }
                 out.push(open(a.file_path));
                 out.push(say("The version in Nexus PLM has been opened in a new tab. Close this one without saving to discard your copy.", "info"));
                 break;
@@ -231,6 +265,7 @@
         OPEN: OPEN, BIND: BIND, VALUES: VALUES, SAY: SAY,
         refuse: refuse,
         effectsFor: effectsFor,
+        isThisDocument: isThisDocument,
         wasCancelled: wasCancelled,
         movesState: movesState
     };
