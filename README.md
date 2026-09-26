@@ -7,10 +7,13 @@ Product lifecycle management from inside the ONLYOFFICE editors. Check a documen
 PLM knows about it, edit its attributes and check it back in — in **Document**, **Spreadsheet**
 and **Presentation**, without leaving the editor.
 
-> **Status: early, and talking to PLM.** The plugin installs, registers, appears in the Plugins
-> ribbon of all three editors in ONLYOFFICE Desktop Editors 9.4.0, reaches the Addin Service, and
-> reports the signed-in user. The commands themselves are the next slice: the panel does not yet
-> know which file the editor has open, so it honestly reports the document as not in PLM.
+> **Status: the Nexus PLM tab is in the ribbon and runs.** Word's tab — its seven groups, all 26
+> commands, split-button menus and icons — sits in the ribbon of all three editors in ONLYOFFICE
+> Desktop Editors 9.4.0, and the buttons do what they do in Word through the same Addin Service:
+> Sign In, Open (into a new tab), Check Out, Check In (the document is saved first), Edit Values,
+> Refresh Values and Connection Status have been driven end to end; the rest post the same bodies
+> Word does and are covered by tests rather than by a hand on the mouse yet. A docked Navigator
+> panel shows what PLM knows about the open document.
 
 ---
 
@@ -29,16 +32,32 @@ exactly one.
 
 ```
 plugin/
-  config.json        one variation, three editors
-  index.html         the panel's frame
-  plugin.js          the Asc.plugin callbacks, and nothing else
-  ui.js              puts decisions into the DOM
+  config.json        three variations, every one for all three editors:
+                     the resident background half (the tab), the Navigator panel, About
+  background.html/js the tab: drawn once, updated as the state changes, clicks handed to the runner
+  index.html, ui.js  the Navigator panel's frame and DOM
+  runner.js          the one path a press takes, whether from the tab or the panel
+  editor.js          the editor and the desktop shell, as a plugin frame can reach them
+  plugin.js          the Asc.plugin callbacks for the panel, and nothing else
   lib/
-    editors.js       the three editors and the only places they differ
+    commands.js      the ONE table: every command, its group, endpoint, body and enable rule
+    toolbar.js       the table as the AddToolbarMenuItem payload
+    host.js          the host's half of each command, as data (open this, write these values)
+    markup.js        comments to review markups and back
+    paths.js         where a staged file is, remembered by name
     panel.js         what the panel shows - no ONLYOFFICE, no DOM
+    editors.js       the three editors and the only places they differ
     client.js        talking to the Nexus PLM Addin Service
+  icons/             light and dark, five scales each, from the add-in family's own art
+tools/
+  install.ps1        copy into ONLYOFFICE's user plugin folder and write the secret
+  make-icons.py      regenerate the icon set from the 80px originals
 tests/               node --test, no editor and no browser needed
 ```
+
+The measured facts behind the tab, the file and the shell — what works from a plugin frame and
+what only looked like it should — are in `CLAUDE.md`, so that they are read before anything here
+is changed.
 
 ## It needs the Addin Service
 

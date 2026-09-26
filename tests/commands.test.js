@@ -103,13 +103,28 @@ test("a document checked out to somebody else offers neither", () => {
     }
 });
 
-test("Markup is shown but not offered, because this host cannot do it yet", () => {
-    // Word has it; ONLYOFFICE's comments are not read yet. Shown and explained beats missing.
+test("Markup and Apply markups are offered for a document PLM knows, like every item command", () => {
+    // ONLYOFFICE hands a plugin its comments (GetAllComments / AddComment), so both halves of
+    // Word's Markup split button are real here.
     for (const id of ["markup", "apply_markups"]) {
-        assert.ok(commands.byId(id), `${id} should still be on the tab`);
-        assert.ok(!commands.isEnabled(commands.byId(id), MINE), `${id} cannot work yet`);
-        assert.match(commands.disabledBecause(commands.byId(id), MINE), /does not read comments/);
+        assert.ok(commands.isEnabled(commands.byId(id), MINE), id);
+        assert.ok(commands.isEnabled(commands.byId(id), CHECKED_IN), id);
+        assert.ok(!commands.isEnabled(commands.byId(id), IN), `${id} needs the document`);
     }
+});
+
+test("New Workflow and Release want the document checked in, as Word refuses them otherwise", () => {
+    for (const id of ["new_workflow", "release"]) {
+        assert.ok(commands.isEnabled(commands.byId(id), CHECKED_IN), id);
+        assert.ok(!commands.isEnabled(commands.byId(id), MINE), id);
+        assert.match(commands.disabledBecause(commands.byId(id), MINE), /Check the document in/);
+    }
+});
+
+test("Edit Values needs the document checked out to me, as Word insists", () => {
+    assert.ok(commands.isEnabled(commands.byId("edit_values"), MINE));
+    assert.ok(!commands.isEnabled(commands.byId("edit_values"), CHECKED_IN));
+    assert.ok(!commands.isEnabled(commands.byId("edit_values"), THEIRS));
 });
 
 test("every greyed command says why", () => {
@@ -139,9 +154,69 @@ test("the payload carries the plugin's guid and one tab", () => {
     assert.strictEqual(payload.tabs[0].text, "Nexus PLM");
 });
 
+test("a button is the large kind, as every button on Word's ribbon is", () => {
+    for (const item of toolbar.tab("asc.{TEST}", IN).tabs[0].items) {
+        assert.strictEqual(item.type, toolbar.BIG_BUTTON, item.id);
+        assert.ok(item.lockInViewMode, `${item.id} should grey in a read-only document`);
+    }
+});
+
+test("Word's groups are drawn as groups: a separator opens every one but the first", () => {
+    const items = toolbar.tab("asc.{TEST}", IN).tabs[0].items;
+    const openers = items.filter((i) => i.separator).map((i) => i.id);
+    const firsts = commands.GROUPS.slice(1)
+        .map((g) => toolbar.buttonId(commands.inGroup(g).filter((c) => !c.parent)[0].id));
+    assert.deepStrictEqual(openers, firsts);
+    assert.ok(!items[0].separator, "nothing before the first group");
+});
+
+test("Word's split buttons carry their menus: Markup, Refresh Values and Help", () => {
+    const items = toolbar.tab("asc.{TEST}", MINE).tabs[0].items;
+    const menus = {};
+    for (const item of items) {
+        if (item.items) {
+            assert.ok(item.split, `${item.id} has a menu but is not a split button`);
+            menus[item.id] = item.items.map((m) => m.id);
+        }
+    }
+    assert.deepStrictEqual(menus, {
+        [toolbar.buttonId("markup")]: [toolbar.buttonId("apply_markups")],
+        [toolbar.buttonId("refresh_values")]: [toolbar.buttonId("reload_document")],
+        [toolbar.buttonId("help")]: [toolbar.buttonId("about"), toolbar.buttonId("connection")]
+    });
+});
+
+test("a menu entry is never enabled while its button is greyed, because the editor greys them together", () => {
+    // Measured: a disabled ButtonCustom takes its menu with it. So commands.js may only nest an
+    // entry whose rule is at least as strict as its parent's, and this holds it.
+    for (const context of [OUT, IN, CHECKED_IN, MINE, THEIRS]) {
+        for (const item of toolbar.tab("asc.{TEST}", context).tabs[0].items) {
+            for (const entry of item.items || []) {
+                if (item.disabled) { assert.ok(entry.disabled, `${entry.id} enabled under greyed ${item.id}`); }
+            }
+        }
+    }
+});
+
+test("a menu entry's click arrives under an id that maps back to its command", () => {
+    for (const id of toolbar.clickIds()) {
+        assert.ok(toolbar.commandFor(id), id);
+    }
+    assert.strictEqual(toolbar.commandFor(toolbar.buttonId("about")).id, "about");
+    assert.strictEqual(toolbar.clickIds().length, commands.COMMANDS.length);
+});
+
 test("every command appears on the tab, in group order", () => {
     const payload = toolbar.tab("asc.{TEST}", IN);
-    assert.strictEqual(payload.tabs[0].items.length, commands.COMMANDS.length);
+    // Every command is either a button or an entry in a button's menu - nothing is missing and
+    // nothing is drawn twice.
+    const drawn = [];
+    for (const item of payload.tabs[0].items) {
+        drawn.push(item.id);
+        for (const entry of item.items || []) { drawn.push(entry.id); }
+    }
+    assert.deepStrictEqual(drawn.slice().sort(), toolbar.clickIds().slice().sort());
+    assert.strictEqual(payload.tabs[0].items.length, commands.topLevel().length);
 
     const order = payload.tabs[0].items.map((i) => toolbar.commandFor(i.id).group);
     const firstSeen = [...new Set(order)];
@@ -191,23 +266,40 @@ test("every button carries an icon pattern", () => {
     const payload = toolbar.tab("asc.{TEST}", IN);
     for (const item of payload.tabs[0].items) {
         assert.ok(item.icons, `${item.id} has no icon`);
-        assert.match(item.icons, /^icons\/%theme-type%/);
+        assert.match(item.icons, /^icons\/%theme-type%\(light\|dark\)\/[a-z_]+%scale%\(default\)\.png$/);
     }
 });
 
-test("every command has icon files on disk, light and dark, default and 2x", () => {
-    // A pattern the editor cannot resolve draws a button with no image and no error — the same
-    // silent failure the LibreOffice build check exists to catch.
+test("every command has icon files on disk, light and dark, at the five scales the editor asks for", () => {
+    // A pattern the editor cannot resolve draws a button with no image and no error - the same
+    // silent failure the LibreOffice build check exists to catch. %scale%(default) expands to
+    // 100, 125, 150, 175 and 200 percent, and the editor names the files itself
+    // (Common.UI.iconsStr2IconsObj): x.png, x@1.25x.png, x@1.5x.png, x@1.75x.png, x@2x.png.
     const fs = require("node:fs");
     const path = require("node:path");
     for (const command of commands.COMMANDS) {
         for (const theme of ["light", "dark"]) {
-            for (const scale of ["", "@2x"]) {
+            for (const scale of ["", "@1.25x", "@1.5x", "@1.75x", "@2x"]) {
                 const file = path.join(__dirname, "..", "plugin", "icons", theme,
                                        `${command.id}${scale}.png`);
                 assert.ok(fs.existsSync(file), `missing ${theme}/${command.id}${scale}.png`);
             }
         }
+    }
+});
+
+test("an icon is the editor's own big-button size at every scale", () => {
+    // 28px at 100%, as the AI plugin shipped with Desktop Editors 9.4.0 draws its big buttons.
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const size = (file) => {
+        const b = fs.readFileSync(file);
+        return [b.readUInt32BE(16), b.readUInt32BE(20)];
+    };
+    const expected = { "": 28, "@1.25x": 35, "@1.5x": 42, "@1.75x": 49, "@2x": 56 };
+    for (const [scale, px] of Object.entries(expected)) {
+        const file = path.join(__dirname, "..", "plugin", "icons", "light", `check_out${scale}.png`);
+        assert.deepStrictEqual(size(file), [px, px], `check_out${scale}.png`);
     }
 });
 
@@ -240,6 +332,15 @@ test("every item command carries the item", () => {
     for (const id of ["check_out", "release", "revise", "properties", "edit_values",
                       "refresh_values", "reload_document", "new_workflow", "change_owner"]) {
         assert.strictEqual(commands.bodyFor(commands.byId(id), context).item_id, "rev-1", id);
+    }
+});
+
+test("an upload carries the path the host read for the document, not one PLM answered with", () => {
+    // /plm/state answers no path; the host's own reading of the open file is the only source.
+    const context = { signedIn: true, user: "admin", state: { item_id: "rev-1", status: "checked_out", checked_out_by: "admin" },
+                      doc: { title: "NX1.docx", path: "C:\Nexus\Staging\NX1.docx" } };
+    for (const id of ["save", "check_in", "save_as_new", "save_as_existing", "change_owner", "markup"]) {
+        assert.strictEqual(commands.bodyFor(commands.byId(id), context).file_path, "C:\Nexus\Staging\NX1.docx", id);
     }
 });
 

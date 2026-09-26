@@ -5,9 +5,9 @@
     <title>Nexus PLM</title>
 
     <!--
-        The plugin's frame. ONLYOFFICE loads this page inside the editor, so there is no bundler
-        and no module loader: every file is a plain script tag, in dependency order, and each one
-        is UMD so the same file is what the tests require.
+        The Navigator panel's frame. ONLYOFFICE loads this page inside the editor, so there is no
+        bundler and no module loader: every file is a plain script tag, in dependency order, and
+        each one is UMD so the same file is what the tests require.
 
         plugins.js is served BY the editor, not by this plugin, and it is what defines
         window.Asc.plugin. It has to come first or Asc.plugin.init is registered on an object the
@@ -49,9 +49,14 @@
     -->
     <script type="text/javascript" src="lib/editors.js"></script>
     <script type="text/javascript" src="lib/client.js"></script>
+    <script type="text/javascript" src="lib/paths.js"></script>
     <script type="text/javascript" src="lib/commands.js"></script>
     <script type="text/javascript" src="lib/panel.js"></script>
     <script type="text/javascript" src="lib/toolbar.js"></script>
+    <script type="text/javascript" src="lib/host.js"></script>
+    <script type="text/javascript" src="lib/markup.js"></script>
+    <script type="text/javascript" src="editor.js"></script>
+    <script type="text/javascript" src="runner.js"></script>
     <script type="text/javascript" src="ui.js"></script>
     <script type="text/javascript" src="plugin.js"></script>
 </body>
