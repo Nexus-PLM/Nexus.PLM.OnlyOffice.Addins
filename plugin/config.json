@@ -9,7 +9,6 @@
   "onlyofficeScheme": true,
   "variations": [
     {
-      "_comment": "FIRST on purpose. ONLYOFFICE labels the first variation 'Start' in the plugin's dropdown and turns it into 'Stop' once it is running - it supplies that UI itself, which is why there is no Start or Stop variation here. Checked against LanguageTool, whose dropdown is exactly Start + About. Starting this one puts the Nexus PLM tab in the ribbon and keeps it there: a visual variation is unloaded when its window closes and takes its tab with it, measured on 9.4.0.",
       "description": "Nexus PLM",
       "url": "background.html",
       "icons": [
@@ -34,7 +33,8 @@
         0
       ],
       "initOnSelectionChanged": false,
-      "events": []
+      "events": [],
+      "_comment": "FIRST, and it is what puts the tab in the ribbon - the only thing measured to work. It is a ONE-SHOT action: it runs, registers the tab, and is torn down (its heartbeat stops, proven by last_seen never advancing). The tab's registration survives, which is why the tab stays. Clicks on it have no frame to reach, so the PANEL is what actually runs commands - see index.html."
     },
     {
       "description": "Open panel",
@@ -62,7 +62,7 @@
       ],
       "initOnSelectionChanged": false,
       "events": [],
-      "_comment": "The docked panel. Reached from the tab's Navigator button, and offered here too so it is never unreachable if the tab has not been started."
+      "_comment": "The panel. Long-lived while open, so it is what runs commands, keeps the tray heartbeat going, and re-registers the tab with live enabled states."
     },
     {
       "_comment": "Last, where every plugin shipped with Desktop Editors puts About. It shows the service's own About window, so the version and the server are reported the same way in every Nexus host.",

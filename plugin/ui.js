@@ -17,6 +17,10 @@
 
     var client = new clientModule.Client();
     var editorType = null;
+    //: Attached once. Button ids never change, and attaching twice runs a command twice.
+    var handlersAttached = false;
+    //: The tray heartbeat, kept alive for as long as this panel is.
+    var beat = null;
     //: What the tab and the panel are both drawn from, so they cannot disagree.
     var context = { signedIn: false, user: null, state: null };
     //: Handlers are attached once; button ids never change, so re-sending the tab does not
@@ -85,13 +89,12 @@
         if (command.id === "navigator") { togglePanel(); return; }
         if (command.id === "help") { openHelp(); return; }
 
-        var body = { hwnd: 0 };
-        if (commands.needsDocument(command) && context.state) {
-            body.item_id = context.state.item_id;
-        }
+        var body = commands.bodyFor(command, context);
+        if (body === null) { reportConnection(); return; }
 
         client.command(command.endpoint, body).then(function (answer) {
-            if (answer && answer.success === false && answer.error) { say(answer.error); }
+            if (answer && answer.unreachable) { say(answer.error, "error"); return; }
+            if (answer && answer.success === false && answer.error) { say(answer.error, "warning"); }
             // Whatever it did, the document's state may have moved underneath us.
             refresh();
         });
@@ -136,16 +139,25 @@
         });
     }
 
-    /** Say something to the user through the service's own toast, so it looks like every host. */
-    function say(message) {
+    /** Say something through the tray's own toast, so it looks like it does in every host. */
+    function say(message, severity) {
         if (!message) { return; }
-        client.notify ? client.notify(message) : (window.console && window.console.log(message));
+        try { client.notify(message, severity || "info"); }
+        catch (e) { window.console && window.console.log(message); }
+    }
+
+    /** Connection Status has no dialog of its own: it reports what we can see from here. */
+    function reportConnection() {
+        client.health().then(function (answer) {
+            if (answer && answer.unreachable) { say(answer.error, "error"); }
+            else if (context.signedIn) { say("Connected to Nexus PLM, signed in as " + context.user + ".", "success"); }
+            else { say("Connected to Nexus PLM. Not signed in.", "info"); }
+        });
     }
 
     function togglePanel() {
-        // The panel IS this plugin's window; asking the editor to show the plugin is how it comes
-        // back once closed.
-        try { window.Asc.plugin.executeCommand("close", ""); } catch (e) { /* already closed */ }
+        // The Navigator IS this panel. Pressing it from the tab while the panel is open is a
+        // no-op rather than a close: closing would take the tab's click handling with it.
     }
 
     function openHelp() {
@@ -174,8 +186,48 @@
         });
     }
 
+    /**
+     * Put the Nexus PLM tab in the ribbon, and keep its buttons in step.
+     *
+     * This lives in the PANEL, not in a background variation, and that is the whole point: a
+     * background variation is a one-shot action - it runs, is torn down, and its heartbeat stops.
+     * The tab's registration survives that, but there is no frame left to receive a click, so
+     * every button did nothing. This frame stays alive while the panel is open.
+     *
+     * Handlers are attached BEFORE the tab is sent, the order ONLYOFFICE's own plugins-ui.js uses.
+     */
+    function drawToolbar() {
+        if (!window.Asc || !window.Asc.plugin) { return; }
+        try {
+            if (!handlersAttached) {
+                commands.COMMANDS.forEach(function (command) {
+                    window.Asc.plugin.attachToolbarMenuClickEvent(
+                        toolbar.buttonId(command.id),
+                        function () { run(command.id); });
+                });
+                handlersAttached = true;
+            }
+            window.Asc.plugin.executeMethod(
+                "AddToolbarMenuItem", [toolbar.tab(window.Asc.plugin.guid, context)]);
+        } catch (e) {
+            // Put it on screen. There is no console to read in a plugin frame, and a tab that
+            // silently fails to draw is the exact failure that cost this feature an evening.
+            var headline = el("panel-headline");
+            if (headline) { headline.textContent = "Tab error: " + (e && e.message ? e.message : e); }
+            window.console && window.console.log("Nexus PLM: the tab could not be drawn - " + e.message);
+        }
+    }
+
     function start(type) {
         editorType = type;
+        // Register with the tray, the way every other host does, so Nexus lists this one as
+        // connected and can tell when it goes away.
+        client.connect();
+        beat = window.setInterval(function () { client.heartbeat(); }, clientModule.HEARTBEAT_MS);
+        window.addEventListener("unload", function () {
+            if (beat) { window.clearInterval(beat); beat = null; }
+            client.disconnect();
+        });
         refresh();
     }
 

@@ -95,15 +95,19 @@ test("the dropdown offers a way in and a way out", () => {
     // and having started it, to stop it.
     const config = JSON.parse(fs.readFileSync(path.join(PLUGIN, "config.json"), "utf8"));
     const descriptions = config.variations.map((v) => v.description).join(" | ");
-    // ONLYOFFICE labels the FIRST variation "Start", and turns it into "Stop" once running -
-    // it supplies that itself, so there must be no Start or Stop variation of our own. Checked
+    // ONLYOFFICE labels the FIRST variation "Start" and turns it into "Stop" once running - it
+    // supplies that itself, so there must be no Start or Stop variation of our own. Checked
     // against LanguageTool, whose dropdown is exactly Start + About.
     assert.ok(!/^(Start|Stop)$/m.test(descriptions),
         "Start/Stop are the editor's to label, not ours");
     assert.match(descriptions, /About/);
 
-    // And the background half must be first, or the thing the user starts is the panel, whose
-    // tab disappears the moment they close it.
+    // The VISUAL panel must be first. A background variation is a one-shot action: it runs, is
+    // torn down, and its heartbeat stops - measured. The tab's registration survives that, but
+    // no frame is left to receive a click, which is why every button did nothing. The panel is
+    // the only frame that stays alive, so it is the one that owns the tab.
+    // The background half is first because it is the only thing measured to put the tab up.
+    // The panel is what runs commands, because it is the only frame that stays alive.
     assert.strictEqual(config.variations[0].url, "background.html");
     assert.strictEqual(config.variations[0].isVisual, false);
     assert.strictEqual(config.variations[config.variations.length - 1].description, "About");
