@@ -46,11 +46,11 @@ test("every command id is unique", () => {
     assert.strictEqual(new Set(ids).size, ids.length);
 });
 
-test("Word's whole set is here", () => {
+test("Word's whole set is here, less the one command this platform does not offer", () => {
     // Read from PLMRibbon.xml in Nexus.PLM.Office.WordAddin, not from memory.
     for (const id of ["sign_in", "sign_out", "new", "open", "save", "save_as_new",
                       "save_as_existing", "navigator", "search", "properties", "check_out",
-                      "check_in", "release", "revise", "markup", "apply_markups", "change_owner",
+                      "check_in", "revise", "markup", "apply_markups", "change_owner",
                       "worklist", "new_workflow", "edit_values", "refresh_values",
                       "reload_document", "settings", "help", "about", "connection"]) {
         assert.ok(commands.byId(id), `${id} is missing`);
@@ -126,8 +126,18 @@ test("Markup and Apply markups are offered for a document PLM knows, like every 
     }
 });
 
-test("New Workflow and Release want the document checked in, as Word refuses them otherwise", () => {
-    for (const id of ["new_workflow", "release"]) {
+test("there is no Release: a revision reaches Released only by running a workflow", () => {
+    // Marc, Sep 26 2026: releasing is a workflow's job. The command wrote the lifecycle status
+    // straight onto the revision, going around the approvals a workflow declares, and neither the
+    // web client nor the WPF client has ever offered it. New Workflow is the way in.
+    assert.ok(!commands.byId("release"), "the command is gone");
+    assert.ok(!commands.COMMANDS.some((c) => c.endpoint === "/plm/release"),
+        "nothing may still post to the release endpoint");
+    assert.ok(commands.byId("new_workflow"), "the replacement is on the tab");
+});
+
+test("New Workflow wants the document checked in, as Word refuses it otherwise", () => {
+    for (const id of ["new_workflow"]) {
         assert.ok(commands.isEnabled(commands.byId(id), CHECKED_IN), id);
         assert.ok(!commands.isEnabled(commands.byId(id), MINE), id);
         assert.match(commands.disabledBecause(commands.byId(id), MINE), /Check the document in/);
@@ -350,7 +360,7 @@ test("the browsers are told what this host can open and where to root", () => {
 test("every item command carries the item", () => {
     const context = { signedIn: true, user: "admin",
                       state: { status: "checked_in", item_id: "rev-1", file_path: "C:/x.docx" } };
-    for (const id of ["check_out", "release", "revise", "properties", "edit_values",
+    for (const id of ["check_out", "revise", "properties", "edit_values",
                       "refresh_values", "reload_document", "new_workflow", "change_owner"]) {
         assert.strictEqual(commands.bodyFor(commands.byId(id), context).item_id, "rev-1", id);
     }

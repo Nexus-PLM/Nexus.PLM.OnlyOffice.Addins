@@ -187,10 +187,6 @@
                 if (a.item_id) { out.push(bind(a.item_id, "checked_in", null, a.revision)); }
                 break;
 
-            case "release":
-                out.push(bind(null, "released", null, a.revision));
-                break;
-
             case "revise":
                 // With a staged file elsewhere, the new revision opens beside this document and
                 // is its own document from then on. When the file is THIS one - or there is no
@@ -257,7 +253,7 @@
      */
     function movesState(command) {
         return ["sign_in", "sign_out", "new", "open", "search", "save_as_new", "save_as_existing",
-                "check_out", "check_in", "release", "revise", "change_owner", "reload_document",
+                "check_out", "check_in", "revise", "change_owner", "reload_document",
                 "new_workflow"].indexOf(command.id) !== -1;
     }
 
