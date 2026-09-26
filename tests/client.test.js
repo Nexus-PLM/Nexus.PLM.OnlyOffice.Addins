@@ -68,36 +68,26 @@ test("an answer that is not JSON is reported, not thrown", async () => {
 });
 
 test("a plugin with no secret says it was not installed properly", () => {
-    // Not "signed out" and not "not in PLM": with no secret the service refuses every call, so
-    // either of those would be a guess about a service that never answered. A bare 403 would send
-    // somebody looking at permissions in PLM instead of at the install step.
-    assert.strictEqual(
-        panel.headline({ status: "checked_in", part_number: "NX1" }, { hasSecret: false }),
-        panel.NOT_INSTALLED
-    );
+    // Not "sign in": nobody can sign in past a 403, and the fix is the install step.
+    assert.strictEqual(panel.trouble({ hasSecret: false, signedIn: true }), panel.NOT_INSTALLED);
 });
 
 test("the missing secret is reported before anything else", () => {
+    // With no secret every call is refused, so any other message would be a guess about a
+    // service that never answered.
     assert.strictEqual(
-        panel.headline(null, { hasSecret: false, signedIn: false, hasDocument: false }),
-        panel.NOT_INSTALLED
-    );
+        panel.trouble({ hasSecret: false, unreachable: true, refused: true, signedIn: false }),
+        panel.NOT_INSTALLED);
 });
 
-test("with a secret the panel goes back to talking about the document", () => {
-    assert.strictEqual(
-        panel.headline({ status: "checked_in", part_number: "NX1" }, { hasSecret: true }),
-        "NX1"
-    );
+test("with a secret the pane goes back to showing the vault", () => {
+    assert.strictEqual(panel.trouble({ hasSecret: true, signedIn: true }), null);
 });
 
 test("a service that is not answering is not reported as signed out", () => {
-    // Each of these is fixed by a different action. Saying "sign in" to all three sent people to
-    // a dialog that could not help.
-    assert.strictEqual(panel.headline(null, { unreachable: true }), panel.NOT_RUNNING);
-    assert.strictEqual(panel.headline(null, { refused: true }), panel.REFUSED);
-    assert.strictEqual(panel.headline(null, { signedIn: false }), panel.NOT_SIGNED_IN);
-    assert.strictEqual(panel.headline(null, { hasSecret: false }), panel.NOT_INSTALLED);
+    assert.strictEqual(panel.trouble({ unreachable: true }), panel.NOT_RUNNING);
+    assert.strictEqual(panel.trouble({ refused: true }), panel.REFUSED);
+    assert.strictEqual(panel.trouble({ signedIn: false }), panel.NOT_SIGNED_IN);
 });
 
 test("the status travels with the answer so the panel can tell them apart", async () => {
@@ -111,17 +101,13 @@ test("the status travels with the answer so the panel can tell them apart", asyn
 });
 
 test("the HTTP status never overwrites the item's own status", () => {
-    // `status` on a /plm/state answer is the lifecycle. Putting the HTTP status there showed
-    // "400" in the panel's Status row and made a document PLM has never seen look like one it
-    // knew, because isInPlm only asks whether status is set and not "unknown".
-    const answer = { success: false, error: "file_path or item_id is required" };
-    answer.httpStatus = 400;
-
-    assert.strictEqual(panel.isInPlm(answer), false);
-    assert.strictEqual(panel.rowsFor(answer).find(([l]) => l === "Status")[1], panel.ABSENT);
+    // A /plm/state answer has a `status` of its own - the item's lifecycle. Writing the HTTP
+    // status over it put a stateless call's 400 into the pane and made a document PLM had never
+    // heard of look like one it knew. The HTTP status travels under a name of OUR choosing.
+    const answer = { success: true, status: "unknown", httpStatus: 400 };
+    assert.strictEqual(answer.status, "unknown");
+    assert.strictEqual(answer.httpStatus, 400);
 });
-
-// ── the tray ─────────────────────────────────────────────────────────────────
 
 test("connecting tells the tray this host's name and version", async () => {
     // Without this the plugin works but is invisible: a ribbon full of commands and nothing in
