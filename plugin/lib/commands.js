@@ -52,8 +52,11 @@
                   "Workflow", "Attribute Exchange", "Settings"];
 
     /**
-     * Every command. `host: false` marks one whose service endpoint exists but whose half in
-     * *this* host does not yet — it is shown, and says so, rather than being quietly missing.
+     * Every command.
+     *
+     * `parent` puts a command in another's menu, the way Word's split buttons carry Release,
+     * Apply markups, Reload Document, About and Connection Status. `saves` marks one that
+     * uploads the file on disk. `method` is POST unless said otherwise.
      */
     var COMMANDS = [
         // ── Account ──────────────────────────────────────────────────────────
@@ -61,11 +64,13 @@
         { id: "sign_out",         label: "Sign Out",              group: "Account",             endpoint: "/api/auth/logout",      when: SIGNED_IN },
 
         // ── Data Management ──────────────────────────────────────────────────
+        //: `saves` marks a command that uploads the file on disk, so the host must have the
+        //: document written out first. Word saves it itself; see host.js for what this one does.
         { id: "new",              label: "New",                   group: "Data Management",     endpoint: "/plm/new",              when: SIGNED_IN },
         { id: "open",             label: "Open",                  group: "Data Management",     endpoint: "/plm/open",             when: SIGNED_IN },
-        { id: "save",             label: "Save",                  group: "Data Management",     endpoint: "/plm/save",             when: MINE },
-        { id: "save_as_new",      label: "Save As",               group: "Data Management",     endpoint: "/plm/save-as-new",      when: SIGNED_IN },
-        { id: "save_as_existing", label: "Save As Existing",      group: "Data Management",     endpoint: "/plm/save-as-existing", when: SIGNED_IN },
+        { id: "save",             label: "Save",                  group: "Data Management",     endpoint: "/plm/save",             when: MINE, saves: true },
+        { id: "save_as_new",      label: "Save As",               group: "Data Management",     endpoint: "/plm/save-as-new",      when: SIGNED_IN, saves: true },
+        { id: "save_as_existing", label: "Save As Existing",      group: "Data Management",     endpoint: "/plm/save-as-existing", when: SIGNED_IN, saves: true },
 
         // ── Navigation and View ──────────────────────────────────────────────
         //: The Navigator is this plugin's own panel, not a service call — it is already built.
@@ -74,31 +79,38 @@
         { id: "properties",       label: "Properties",            group: "Navigation and View", endpoint: "/plm/properties",       when: DOCUMENT },
 
         // ── Tasks ────────────────────────────────────────────────────────────
-        //: Word shows Check Out and Check In as one split button whose label follows the state.
-        //: Here they are two commands and the enable rules do the same job, which is the same
-        //: behaviour without a control that lies about which half you pressed.
+        //: Word shows Check Out and Check In as one split button whose label follows the state,
+        //: with Release and Revise in its menu. Here every one is its own button: ONLYOFFICE greys
+        //: a split button's menu with the button, and Release must stay reachable while Check In
+        //: is not (it needs the document checked IN). The enable rules do the same job as Word's
+        //: label switch without a control that lies about which half you pressed.
         { id: "check_out",        label: "Check Out",             group: "Tasks",               endpoint: "/plm/checkout",         when: CHECKED_IN },
-        { id: "check_in",         label: "Check In",              group: "Tasks",               endpoint: "/plm/checkin",          when: MINE },
-        { id: "release",          label: "Release",               group: "Tasks",               endpoint: "/plm/release",          when: DOCUMENT },
+        { id: "check_in",         label: "Check In",              group: "Tasks",               endpoint: "/plm/checkin",          when: MINE, saves: true },
+        { id: "release",          label: "Release",               group: "Tasks",               endpoint: "/plm/release",          when: CHECKED_IN },
         { id: "revise",           label: "Revise",                group: "Tasks",               endpoint: "/plm/revise",           when: DOCUMENT },
-        { id: "markup",           label: "Markup",                group: "Tasks",               endpoint: "/plm/markup",           when: DOCUMENT, host: false },
-        { id: "apply_markups",    label: "Apply markups from PLM", group: "Tasks",              endpoint: "/plm/markup",           when: DOCUMENT, host: false },
-        { id: "change_owner",     label: "Change Ownership",      group: "Tasks",               endpoint: "/plm/set-owner",        when: DOCUMENT },
+        //: Markup sends this document's comments to PLM as review markups; its menu brings every
+        //: reviewer's markups back in as comments — the same pair as Word's split button.
+        { id: "markup",           label: "Markup",                group: "Tasks",               endpoint: "/plm/markup",           when: DOCUMENT },
+        { id: "apply_markups",    label: "Apply markups from PLM", group: "Tasks",              endpoint: "/plm/markup",           when: DOCUMENT, parent: "markup", method: "GET" },
+        { id: "change_owner",     label: "Change Ownership",      group: "Tasks",               endpoint: "/plm/set-owner",        when: DOCUMENT, saves: true },
 
         // ── Workflow ─────────────────────────────────────────────────────────
         { id: "worklist",         label: "My Worklist",           group: "Workflow",            endpoint: "/plm/worklist",         when: SIGNED_IN },
-        { id: "new_workflow",     label: "New Workflow",          group: "Workflow",            endpoint: "/plm/workflow",         when: DOCUMENT },
+        //: Word refuses a checked-out document ("check in first"), so it is greyed here for the
+        //: same reason rather than offered and refused.
+        { id: "new_workflow",     label: "New Workflow",          group: "Workflow",            endpoint: "/plm/workflow",         when: CHECKED_IN },
 
         // ── Attribute Exchange ───────────────────────────────────────────────
-        { id: "edit_values",      label: "Edit Values",           group: "Attribute Exchange",  endpoint: "/plm/edit-values",      when: DOCUMENT },
+        //: Word: "Check out the document before editing attribute values."
+        { id: "edit_values",      label: "Edit Values",           group: "Attribute Exchange",  endpoint: "/plm/edit-values",      when: MINE },
         { id: "refresh_values",   label: "Refresh Values",        group: "Attribute Exchange",  endpoint: "/plm/refresh-values",   when: DOCUMENT },
-        { id: "reload_document",  label: "Reload Document",       group: "Attribute Exchange",  endpoint: "/plm/reload-document",  when: DOCUMENT },
+        { id: "reload_document",  label: "Reload Document",       group: "Attribute Exchange",  endpoint: "/plm/reload-document",  when: DOCUMENT, parent: "refresh_values" },
 
         // ── Settings ─────────────────────────────────────────────────────────
         { id: "settings",         label: "Current Settings",      group: "Settings",            endpoint: "/plm/settings",         when: SIGNED_IN },
         { id: "help",             label: "Help",                  group: "Settings",            endpoint: null,                    when: ALWAYS },
-        { id: "about",            label: "About Nexus PLM",       group: "Settings",            endpoint: "/plm/about",            when: ALWAYS },
-        { id: "connection",       label: "Connection Status",     group: "Settings",            endpoint: "/api/health",           when: ALWAYS }
+        { id: "about",            label: "About Nexus PLM",       group: "Settings",            endpoint: "/plm/about",            when: ALWAYS, parent: "help" },
+        { id: "connection",       label: "Connection Status",     group: "Settings",            endpoint: "/api/health",           when: ALWAYS, parent: "help" }
     ];
 
     /**
@@ -111,9 +123,14 @@
         return command.when === DOCUMENT || command.when === CHECKED_IN || command.when === MINE;
     }
 
-    /** Whether this host can actually carry the command out yet. */
-    function hostSupports(command) {
-        return command.host !== false;
+    /** The commands drawn as buttons: everything that is not in another command's menu. */
+    function topLevel() {
+        return COMMANDS.filter(function (c) { return !c.parent; });
+    }
+
+    /** The commands in this one's menu, in table order. */
+    function childrenOf(commandId) {
+        return COMMANDS.filter(function (c) { return c.parent === commandId; });
     }
 
     function byId(id) {
@@ -134,8 +151,6 @@
      * the tab and the panel cannot reach different answers.
      */
     function isEnabled(command, context) {
-        if (!hostSupports(command)) { return false; }
-
         var c = context || {};
         var state = c.state;
         var inPlm = !!(state && state.status && state.status !== "unknown");
@@ -165,7 +180,9 @@
     function bodyFor(command, context) {
         var c = context || {};
         var itemId = (c.state && c.state.item_id) || null;
-        var filePath = (c.state && c.state.file_path) || null;
+        // Where the file is comes from the host's own reading of the document (`doc`), not from
+        // PLM's answer about the item: a /plm/state answer carries no path.
+        var filePath = (c.doc && c.doc.path) || (c.state && c.state.file_path) || null;
         var extensions = client.FILE_EXTENSIONS.join(";");
 
         switch (command.id) {
@@ -191,6 +208,12 @@
                                               is_assembly: false, structure: [], joints: [],
                                               saved_unsaved_changes: false };
             case "release":          return { item_id: itemId };
+            //: The entries are the document's comments, which only the editor can read; the
+            //: runner fills them in. The rest is what the service wants to know about the sender.
+            case "markup":           return { item_id: itemId, host: client.HOST_NAME,
+                                              file_path: filePath, entries: [] };
+            //: A GET: which item, and nothing to post.
+            case "apply_markups":    return { item_id: itemId };
             case "revise":           return { item_id: itemId, hwnd: 0 };
             case "change_owner":     return { item_id: itemId, file_path: filePath, hwnd: 0 };
 
@@ -221,9 +244,6 @@
         if (isEnabled(command, context)) { return null; }
         var c = context || {};
 
-        if (!hostSupports(command)) {
-            return "Nexus PLM does not read comments from ONLYOFFICE yet.";
-        }
         if (command.when === SIGNED_OUT) { return "You are already signed in."; }
         if (!c.signedIn) { return "Sign in to Nexus PLM first."; }
 
@@ -232,7 +252,11 @@
         if (needsDocument(command) && !inPlm) {
             return "Nexus PLM does not know which item this document is.";
         }
-        if (command.when === CHECKED_IN) { return "This document is already checked out."; }
+        if (command.when === CHECKED_IN) {
+            return state.status === "checked_out"
+                ? "Check the document in first."
+                : "Not available while the document is " + String(state.status).replace(/_/g, " ") + ".";
+        }
         if (command.when === MINE) { return "This document is not checked out to you."; }
         return "Not available for this document.";
     }
@@ -245,9 +269,10 @@
         GROUPS: GROUPS,
         bodyFor: bodyFor,
         needsDocument: needsDocument,
-        hostSupports: hostSupports,
         byId: byId,
         inGroup: inGroup,
+        topLevel: topLevel,
+        childrenOf: childrenOf,
         isEnabled: isEnabled,
         disabledBecause: disabledBecause
     };

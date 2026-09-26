@@ -16,7 +16,7 @@
         client.command("/plm/about", {
             hwnd: 0,
             host_name: "ONLYOFFICE",
-            addin_version: "0.1.0"
+            addin_version: "0.2.0"
         }).then(function () {
             try { window.Asc.plugin.executeCommand("close", ""); } catch (e) { /* closing */ }
         });

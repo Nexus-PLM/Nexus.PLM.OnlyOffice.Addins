@@ -1,170 +1,100 @@
 /*
- * The Nexus PLM tab, and nothing else.
+ * The Nexus PLM tab.
  *
- * This half of the plugin has no window. It puts the tab in the ribbon, keeps its buttons in step
- * with the signed-in user and the open document, and runs what the user presses.
+ * This is the plugin's resident half: the frame ONLYOFFICE keeps alive for as long as the
+ * document is open, because config.json types its variation "background". It puts the tab in
+ * the ribbon, keeps every button's enabled state in step with the signed-in user and the open
+ * document, and hands what the user presses to the runner — the whole of what the Word ribbon
+ * does, through the same service.
  *
- * ── Why it is separate from the panel ────────────────────────────────────────────────────────
- * A visual variation is unloaded the moment its window is closed, and everything it registered
- * goes with it — measured on Desktop Editors 9.4.0: the tab appeared when the panel opened and
- * vanished the moment it was closed. A background variation keeps running for as long as the
- * document is open, so the tab stays. `Send` and `Encryption`, both shipped with Desktop Editors,
- * are built the same way.
- *
- * Every decision — which commands exist, when each may be pressed, what a greyed one should say —
- * is in `lib/commands.js` and shared with the panel, so the tab and the panel cannot disagree.
+ * ── Why "background", and not the invisible variation this used to be ─────────────────────
+ * The SDK maps a variation with no `type` and `isVisual: false` to PluginType.Invisible: a
+ * one-shot action whose frame is torn down as soon as init returns. The tab it registered
+ * survived that, which is why buttons drew and then did nothing — there was no frame left for a
+ * click to reach. A `type: "background"` variation is what the shipped AI plugin uses to keep
+ * its tab alive, and the editor starts it with every document unless the user stops it. (Read
+ * from CPluginVariation in sdk-all-min.js, Desktop Editors 9.4.0.)
  */
 
 (function (window) {
     "use strict";
 
-    var commands = window.NexusPlmCommands;
     var toolbar = window.NexusPlmToolbar;
     var clientModule = window.NexusPlmClient;
+    var editor = window.NexusPlmEditor;
 
-    var client = new clientModule.Client();
+    /** How often to re-read the document's state when nothing else has, as Word's ribbon does. */
+    var POLL_MS = 15000;
 
-    /** What the tab is drawn from. The panel keeps its own copy of the same three things. */
-    var context = { signedIn: false, user: null, state: null };
+    var runner = null;
 
-    /** Attached once: button ids never change, and attaching twice runs a command twice. */
-    var handlersAttached = false;
+    /** True once the tab has been drawn; afterwards it is updated, never re-added. */
+    var tabDrawn = false;
 
-    /** The heartbeat timer, so it can be stopped when the document closes. */
     var beat = null;
+    var poll = null;
 
     window.Asc = window.Asc || {};
     window.Asc.plugin = window.Asc.plugin || {};
 
     window.Asc.plugin.init = function () {
-        // Register with the tray first, so Nexus lists this host as connected the way it lists
-        // Word and FreeCAD. Without it the plugin works but is invisible - which is exactly how
-        // it looked: a tab full of commands and nothing in the tray.
-        client.connect();
-        beat = window.setInterval(function () { client.heartbeat(); }, clientModule.HEARTBEAT_MS);
+        runner = window.NexusPlmRunner.create({
+            editorType: (window.Asc.plugin.info && window.Asc.plugin.info.editorType) || null,
+            onState: drawTab
+        });
 
-        draw();
-        refresh();
+        // Register with the tray first, so Nexus lists this host as connected the way it lists
+        // Word and FreeCAD, and keep telling it we are here.
+        runner.client.connect();
+        beat = window.setInterval(function () { runner.client.heartbeat(); }, clientModule.HEARTBEAT_MS);
+
+        attachHandlers();
+        drawTab(runner.context);
+        runner.refresh();
+        poll = window.setInterval(function () { runner.refresh(); }, POLL_MS);
     };
 
-    /** Tell the tray we have gone, rather than leaving it to time us out. */
-    window.Asc.plugin.onExternalMouseUp = function () {};
     window.addEventListener("unload", function () {
         if (beat) { window.clearInterval(beat); beat = null; }
-        client.disconnect();
+        if (poll) { window.clearInterval(poll); poll = null; }
+        if (runner) { runner.client.disconnect(); }
     });
 
-    /** The document changed under us, so what the commands may do may have changed too. */
-    window.Asc.plugin.onDocumentContentReady = function () {
-        refresh();
+    /** The document changed under us; what the commands may do may have changed too. */
+    window.Asc.plugin.onDocumentContentReady = function () { if (runner) { runner.refresh(); } };
+
+    /** A window of ours closing arrives here with id -1. */
+    window.Asc.plugin.button = function (id, windowId) {
+        if (id === -1) { editor.windowClosed(windowId); }
     };
 
-    window.Asc.plugin.button = function () {
-        // A background variation has no buttons of its own; nothing to do.
-    };
+    window.Asc.plugin.onExternalMouseUp = function () {};
 
     /**
-     * Put the tab in the ribbon.
-     *
-     * The whole tab is re-sent on every state change rather than patched: AddToolbarMenuItem
-     * replaces the tab for this guid, and one call that is always right beats a diff that is
-     * usually right.
+     * Handlers FIRST, then the tab — the order ONLYOFFICE's own plugins-ui.js uses. Every button
+     * and every entry in a button's menu has an id of its own, and a click arrives under it.
      */
-    function draw() {
-        try {
-            // Handlers FIRST, then the tab. That is the order ONLYOFFICE's own helper uses in
-            // plugins-ui.js — it attaches every button's onclick and only then calls
-            // AddToolbarMenuItem. Attaching afterwards left every button doing nothing at all:
-            // the tab drew, the clicks went nowhere, and no request ever reached the service.
-            if (!handlersAttached) {
-                commands.COMMANDS.forEach(function (command) {
-                    window.Asc.plugin.attachToolbarMenuClickEvent(
-                        toolbar.buttonId(command.id),
-                        function () { run(command.id); });
-                });
-                handlersAttached = true;
-            }
-
-            window.Asc.plugin.executeMethod(
-                "AddToolbarMenuItem", [toolbar.tab(window.Asc.plugin.guid, context)]);
-        } catch (e) {
-            // Nothing here can show a message — there is no window. The tab simply does not
-            // appear, and the panel still works.
-            window.console && window.console.log("Nexus PLM: the tab could not be drawn — " + e.message);
-        }
-    }
-
-    /** Ask the service who is signed in and what the open document is, then redraw the tab. */
-    function refresh() {
-        client.me().then(function (me) {
-            context.signedIn = !!(me && me.success && me.username);
-            context.user = context.signedIn ? me.username : null;
-
-            if (!context.signedIn) { context.state = null; draw(); return; }
-
-            // Which file the editor has open is not known yet, so nothing that needs the document
-            // is offered. That is honest rather than optimistic: the commands would be refused.
-            client.state({}).then(function (state) {
-                context.state = state;
-                draw();
+    function attachHandlers() {
+        toolbar.clickIds().forEach(function (id) {
+            window.Asc.plugin.attachToolbarMenuClickEvent(id, function () {
+                runner.run(toolbar.commandFor(id));
             });
         });
     }
 
-    function run(commandId) {
-        var command = commands.byId(commandId);
-        if (!command) { return; }
-
-        // Never act on a command the rules say is unavailable. The tab greys it, but a stale tab
-        // is one repaint away, and the service's refusal is indistinguishable from a bug.
-        if (!commands.isEnabled(command, context)) {
-            say(commands.disabledBecause(command, context));
-            return;
+    /**
+     * Add the tab once; afterwards send the same payload as an update, which the editor applies
+     * to the buttons it already drew (text, tooltip, enabled state, menus).
+     */
+    function drawTab(context) {
+        try {
+            window.Asc.plugin.executeMethod(
+                tabDrawn ? "UpdateToolbarMenuItem" : "AddToolbarMenuItem",
+                [toolbar.tab(window.Asc.plugin.guid, context)]);
+            tabDrawn = true;
+        } catch (e) {
+            window.console && window.console.log("Nexus PLM: the tab could not be drawn - " + e.message);
         }
-
-        if (command.id === "navigator") { showPanel(); return; }
-        if (command.id === "help") { openHelp(); return; }
-
-        var body = commands.bodyFor(command, context);
-        if (body === null) { reportConnection(); return; }
-
-        client.command(command.endpoint, body).then(function (answer) {
-            if (answer && answer.unreachable) { say(answer.error, "error"); return; }
-            if (answer && answer.success === false && answer.error) { say(answer.error, "warning"); }
-            // Whatever it did, the document's state may have moved underneath us.
-            refresh();
-        });
-    }
-
-    /** Say something through the tray's own toast, so it looks like it does in every host. */
-    function say(message, severity) {
-        if (!message) { return; }
-        try { client.notify(message, severity || "info"); }
-        catch (e) { window.console && window.console.log(message); }
-    }
-
-    /** Connection Status has no dialog of its own: it reports what we can see from here. */
-    function reportConnection() {
-        client.health().then(function (answer) {
-            if (answer && answer.unreachable) {
-                say(answer.error, "error");
-            } else if (context.signedIn) {
-                say("Connected to Nexus PLM, signed in as " + context.user + ".", "success");
-            } else {
-                say("Connected to Nexus PLM. Not signed in.", "info");
-            }
-        });
-    }
-
-    /** Open the panel — this variation has no window of its own to show. */
-    function showPanel() {
-        try { window.Asc.plugin.executeMethod("ShowPlugin", [window.Asc.plugin.guid]); }
-        catch (e) { window.console && window.console.log("Nexus PLM: could not open the panel."); }
-    }
-
-    function openHelp() {
-        try { window.Asc.plugin.executeMethod("OpenLink", ["https://nexusplm.help/"]); }
-        catch (e) { window.console && window.console.log("Nexus PLM: could not open help."); }
     }
 
 })(window);

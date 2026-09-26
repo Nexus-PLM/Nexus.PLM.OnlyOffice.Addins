@@ -40,20 +40,25 @@ jobs:
       # so it is worth a second of CI to know the file is at least JSON.
       run: node -e "JSON.parse(require('fs').readFileSync('plugin/config.json','utf8')); console.log('config.json parses')"
 
-    - name: Check every script the page loads exists
-      # index.html references its scripts by relative path. A renamed or moved file shows up in
-      # the editor as a panel that never draws, with nothing in any log.
+    - name: Check every script the pages load exists
+      # Every page references its scripts by relative path. A renamed or moved file shows up in
+      # the editor as a panel that never draws or a tab that never appears, with nothing in any
+      # log. Two kinds of script are not the plugin's to ship and are skipped: the editor's own
+      # runtime under ../v1/, and secret.js, which tools/install.ps1 writes on the machine.
       run: |
         node - <<'EOF'
         const fs = require('fs'), path = require('path');
-        const html = fs.readFileSync('plugin/index.html', 'utf8');
-        const srcs = [...html.matchAll(/src="([^"]+)"/g)].map(m => m[1])
-          .filter(s => !s.startsWith('http'));
+        const config = JSON.parse(fs.readFileSync('plugin/config.json', 'utf8'));
         let bad = 0;
-        for (const s of srcs) {
-          const p = path.join('plugin', s);
-          if (!fs.existsSync(p)) { console.error('missing: ' + p); bad++; }
-          else { console.log('ok: ' + p); }
+        for (const page of config.variations.map(v => v.url)) {
+          const html = fs.readFileSync(path.join('plugin', page), 'utf8');
+          const srcs = [...html.matchAll(/src="([^"]+)"/g)].map(m => m[1])
+            .filter(s => !s.startsWith('http') && !s.startsWith('../v1/') && s !== 'secret.js');
+          for (const s of srcs) {
+            const p = path.join('plugin', s);
+            if (!fs.existsSync(p)) { console.error(page + ' missing: ' + p); bad++; }
+            else { console.log(page + ' ok: ' + p); }
+          }
         }
         process.exit(bad ? 1 : 0);
         EOF
