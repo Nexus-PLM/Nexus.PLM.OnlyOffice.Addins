@@ -149,6 +149,12 @@
         });
     };
 
+    /**
+     * Restore the session this machine already holds, silently - the middle rung of the sign-in
+     * ladder Word climbs. No dialog, no credentials; answers {"success": bool, "username": ...}.
+     */
+    Client.prototype.autoLogin = function () { return this._call("POST", "/api/auth/auto-login", {}); };
+
     /** Who is signed in: {"success": bool, "username": ...}. */
     Client.prototype.me = function () { return this._call("GET", "/api/auth/me"); };
 

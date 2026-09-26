@@ -35,7 +35,9 @@
      *
      * ALWAYS     — even signed out, even with nothing open. Only things that report or explain.
      * SIGNED_OUT — only when there is no session.
-     * SIGNED_IN  — needs a session, but nothing about the document.
+     * SIGNED_IN  — needs a session to be offered at all. Only Sign Out.
+     * SESSION    — offered always; the press signs you in first, as Word's handlers do.
+     * UNREGISTERED — needs a session, and the document must not already be a PLM item.
      * DOCUMENT   — needs to know which PLM item the open file is.
      * CHECKED_IN — that, and the item not checked out.
      * MINE       — that, and checked out to the signed-in user.
@@ -46,6 +48,14 @@
     var ALWAYS = "always";
     var SIGNED_OUT = "signed_out";
     var SIGNED_IN = "signed_in";
+    /**
+     * Pressable whether or not there is a session: the press signs you in and then runs, which
+     * is what Word does (every handler calls EnsureSignedInAsync first). Nothing about the
+     * document is needed either - these are how you GET a document.
+     */
+    var SESSION = "session";
+    /** Needs a session, and the open document must NOT already be a PLM item. */
+    var UNREGISTERED = "unregistered";
     var DOCUMENT = "document";
     var CHECKED_IN = "checked_in";
     var MINE = "mine";
@@ -71,16 +81,19 @@
         // ── Data Management ──────────────────────────────────────────────────
         //: `saves` marks a command that uploads the file on disk, so the host must have the
         //: document written out first. Word saves it itself; see host.js for what this one does.
-        { id: "new",              label: "New",                   group: "Data Management",     endpoint: "/plm/new",              when: SIGNED_IN },
-        { id: "open",             label: "Open",                  group: "Data Management",     endpoint: "/plm/open",             when: SIGNED_IN },
+        { id: "new",              label: "New",                   group: "Data Management",     endpoint: "/plm/new",              when: SESSION },
+        { id: "open",             label: "Open",                  group: "Data Management",     endpoint: "/plm/open",             when: SESSION },
         { id: "save",             label: "Save",                  group: "Data Management",     endpoint: "/plm/save",             when: MINE, saves: true },
-        { id: "save_as_new",      label: "Save As",               group: "Data Management",     endpoint: "/plm/save-as-new",      when: SIGNED_IN, saves: true },
+        //: Word refuses this outright once the document IS an item, in the ribbon and again in
+        //: the handler ("already registered in PLM - use Save to update it"). Offering it would
+        //: create a SECOND item for one file.
+        { id: "save_as_new",      label: "Save As",               group: "Data Management",     endpoint: "/plm/save-as-new",      when: UNREGISTERED, saves: true },
         { id: "save_as_existing", label: "Save As Existing",      group: "Data Management",     endpoint: "/plm/save-as-existing", when: SIGNED_IN, saves: true },
 
         // ── Navigation and View ──────────────────────────────────────────────
         //: The Navigator is this plugin's own panel, not a service call — it is already built.
         { id: "navigator",        label: "Navigator",             group: "Navigation and View", endpoint: null,                    when: ALWAYS, toggle: true },
-        { id: "search",           label: "Search",                group: "Navigation and View", endpoint: "/plm/search",           when: SIGNED_IN },
+        { id: "search",           label: "Search",                group: "Navigation and View", endpoint: "/plm/search",           when: SESSION },
         { id: "properties",       label: "Properties",            group: "Navigation and View", endpoint: "/plm/properties",       when: DOCUMENT },
 
         // ── Tasks ────────────────────────────────────────────────────────────
@@ -100,7 +113,7 @@
         { id: "change_owner",     label: "Change Ownership",      group: "Tasks",               endpoint: "/plm/set-owner",        when: DOCUMENT, saves: true },
 
         // ── Workflow ─────────────────────────────────────────────────────────
-        { id: "worklist",         label: "My Worklist",           group: "Workflow",            endpoint: "/plm/worklist",         when: SIGNED_IN },
+        { id: "worklist",         label: "My Worklist",           group: "Workflow",            endpoint: "/plm/worklist",         when: SESSION },
         //: Word refuses a checked-out document ("check in first"), so it is greyed here for the
         //: same reason rather than offered and refused.
         { id: "new_workflow",     label: "New Workflow",          group: "Workflow",            endpoint: "/plm/workflow",         when: CHECKED_IN },
@@ -113,7 +126,7 @@
         { id: "reload_document",  label: "Reload Document",       group: "Attribute Exchange",  endpoint: "/plm/reload-document",  when: NOT_MINE, parent: "refresh_values" },
 
         // ── Settings ─────────────────────────────────────────────────────────
-        { id: "settings",         label: "Current Settings",      group: "Settings",            endpoint: "/plm/settings",         when: SIGNED_IN },
+        { id: "settings",         label: "Current Settings",      group: "Settings",            endpoint: "/plm/settings",         when: SESSION },
         { id: "help",             label: "Help",                  group: "Settings",            endpoint: null,                    when: ALWAYS },
         { id: "about",            label: "About Nexus PLM",       group: "Settings",            endpoint: "/plm/about",            when: ALWAYS, parent: "help" },
         { id: "connection",       label: "Connection Status",     group: "Settings",            endpoint: "/api/health",           when: ALWAYS, parent: "help" }
@@ -128,6 +141,20 @@
     function needsDocument(command) {
         return command.when === DOCUMENT || command.when === CHECKED_IN || command.when === MINE ||
                command.when === NOT_MINE;
+    }
+
+    /**
+     * Whether pressing this command without a session should climb the sign-in ladder rather
+     * than refuse. Word does this for every command: each handler calls EnsureSignedInAsync
+     * first, so a signed-out user presses New once, signs in, and New runs.
+     */
+    function needsSession(command) {
+        return !!command && command.when !== ALWAYS && command.when !== SIGNED_OUT;
+    }
+
+    /** Every command, as the tab draws them, needs a session for its rule to mean anything. */
+    function sessionOptional(command) {
+        return !!command && command.when === SESSION;
     }
 
     /** The commands drawn as buttons: everything that is not in another command's menu. */
@@ -168,6 +195,9 @@
             case ALWAYS:     return true;
             case SIGNED_OUT: return !c.signedIn;
             case SIGNED_IN:  return !!c.signedIn;
+            //: Offered signed out too - pressing it climbs the sign-in ladder, then runs.
+            case SESSION:    return true;
+            case UNREGISTERED: return !!c.signedIn && !inPlm;
             case DOCUMENT:   return !!c.signedIn && inPlm;
             case CHECKED_IN: return !!c.signedIn && inPlm && state.status === "checked_in";
             case MINE:       return !!c.signedIn && mine;
@@ -206,7 +236,14 @@
             case "search":           return { root_base_type: client.ROOT_BASE_TYPE, hwnd: 0 };
 
             case "save":             return { item_id: itemId, file_path: filePath };
-            case "save_as_new":      return { file_path: filePath, hwnd: 0, attributes: {} };
+            //: Save As shows the same New Object form as New, so it declares the same things:
+            //: the host's name for the template chip's wording, and what this host can open so a
+            //: type whose template it cannot open is not offered. Word sends both; without them
+            //: the form offered every type and the chip read "Has template".
+            case "save_as_new":      return { file_path: filePath, hwnd: 0, attributes: {},
+                                              root_base_type: client.ROOT_BASE_TYPE,
+                                              host_name: client.HOST_NAME,
+                                              file_extensions: extensions };
             case "save_as_existing": return { file_path: filePath, hwnd: 0,
                                               root_base_type: client.ROOT_BASE_TYPE,
                                               file_extensions: extensions };
@@ -255,6 +292,10 @@
         if (command.when === SIGNED_OUT) { return "You are already signed in."; }
         if (!c.signedIn) { return "Sign in to Nexus PLM first."; }
 
+        if (command.when === UNREGISTERED) {
+            return "This document is already registered in Nexus PLM. Use Save to update it.";
+        }
+
         var state = c.state;
         var inPlm = !!(state && state.status && state.status !== "unknown");
         if (needsDocument(command) && !inPlm) {
@@ -275,11 +316,14 @@
     return {
         TAB: TAB,
         ALWAYS: ALWAYS, SIGNED_OUT: SIGNED_OUT, SIGNED_IN: SIGNED_IN,
+        SESSION: SESSION, UNREGISTERED: UNREGISTERED,
         DOCUMENT: DOCUMENT, CHECKED_IN: CHECKED_IN, MINE: MINE, NOT_MINE: NOT_MINE,
         COMMANDS: COMMANDS,
         GROUPS: GROUPS,
         bodyFor: bodyFor,
         needsDocument: needsDocument,
+        needsSession: needsSession,
+        sessionOptional: sessionOptional,
         byId: byId,
         inGroup: inGroup,
         topLevel: topLevel,

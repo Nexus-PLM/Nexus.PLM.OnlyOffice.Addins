@@ -68,9 +68,22 @@ test("every command either calls the service or is explicitly local", () => {
 
 // ── when a command may be pressed ────────────────────────────────────────────
 
-test("signed out, only the things that report or explain are live", () => {
+test("signed out, what is live is what Word leaves live", () => {
+    // The informational commands, and the five that are how you GET a document - pressing one
+    // of those signs you in first, as Word's handlers do. Nothing item-scoped: with no session
+    // there is no state, and a command that needs the item would only be refused.
     const live = commands.COMMANDS.filter((c) => commands.isEnabled(c, OUT)).map((c) => c.id);
-    assert.deepStrictEqual(live.sort(), ["about", "connection", "help", "navigator", "sign_in"]);
+    assert.deepStrictEqual(live.sort(), [
+        "about", "connection", "help", "navigator", "new", "open", "search", "settings",
+        "sign_in", "worklist"
+    ]);
+});
+
+test("a command offered signed out still needs a session to run, and says so", () => {
+    for (const id of ["new", "open", "search", "worklist", "settings"]) {
+        assert.ok(commands.sessionOptional(commands.byId(id)), id);
+        assert.ok(commands.needsSession(commands.byId(id)), id);
+    }
 });
 
 test("signing in lights up everything that does not need the document", () => {
