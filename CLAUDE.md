@@ -97,20 +97,23 @@ remembered in the tab that asked for it.
 local file (the file's timestamp moves). Whether the document is dirty cannot be read, so it is
 asked for before every upload, as Word saves before every upload.
 
-**Values, and the template syntax this host needs.** `Api.GetDocument().GetCustomProperties()
-.Add(name, value)` writes a custom property and `Get` reads it back. But a `DOCPROPERTY` field
-showing that property keeps its cached text: ONLYOFFICE's SDK parses MERGEFIELD, ADDIN, FORMTEXT,
-FORMCHECKBOX, PAGE, NUMPAGES, PAGEREF, HYPERLINK, TOC, SEQ, STYLEREF, REF, DATE, TIME, NOTEREF,
-ASK and IF — not DOCPROPERTY (and `STRING \@"..."` is no field type anywhere). Do NOT call
-`UpdateAllFields` after writing: it turns a DOCPROPERTY field into "Error! Reference source not
-found" (measured; that cost a document title). What ONLYOFFICE renders at once is a **content
-control whose tag (or alias) is the attribute name**: three of them, written by Refresh Values,
-read "EM-00000040-DOC / A / admin" in the same document whose DOCPROPERTY cells stayed
-placeholders. That is the syntax a template meant for ONLYOFFICE must use, and it is already
-shared: the Word add-in writes content controls by title or tag, and the Vault's Word connector
-(`WordTemplateConnector`) reads `SdtElement` by tag, then alias. Only what the type's Data Model
-→ Templates section maps comes back at all: n5EMICAR answered seven attributes, and
-`NXDocumentClassification` was not among them because its mapping is document → PLM.
+**Values, and the template syntax this host needs.** Measured in ONE document carrying all four
+kinds side by side, after Refresh Values:
+
+| in the template | what ONLYOFFICE showed | why |
+|---|---|---|
+| content control tagged `NXPartNumber` | the value, at once | the builder writes its text; Word and the Vault's `WordTemplateConnector` read it by tag, then alias |
+| `{ ADDIN NXCreatedBy }` | the value, at once | ONLYOFFICE's own plugin field: `GetAllAddinFields` lists it as `{FieldId, Value: "NXCreatedBy", Content}`, `UpdateAddinFields` re-displays it. Typed as `ADDIN NXCreatedBy` in Insert → Field. Word shows its cached text. The Vault does not read ADDIN yet |
+| `{ MERGEFIELD NXRevision }` | unchanged | the SDK parses it but refreshes it only by mail merge, which makes merged copies; the builder's `LoadMailMergeData` + `MailMerge` changed nothing in place and left a stray paragraph |
+| `{ DOCPROPERTY NXPartNumber }` | unchanged | not a field type ONLYOFFICE parses (its Insert → Field list: ASK, DATE, formula, HYPERLINK, MERGEFIELD, NOTEREF, NUMPAGES, PAGE, PAGEREF, REF, SEQ, STYLEREF, TIME, TOC); `STRING \@"..."` is no field anywhere |
+
+`GetCustomProperties().Add` writes the property and `Get` reads it back in every case; only the
+display differs. Do NOT call `UpdateAllFields` after writing: it turns a DOCPROPERTY field into
+"Error! Reference source not found" (measured). Only what the type's Data Model → Templates
+section maps comes back at all: n5EMICAR answered seven attributes, and
+`NXDocumentClassification` was not among them because its mapping is document → PLM. The
+existing n5EMICAR template is DOCPROPERTY-based, so it needs re-authoring with content controls
+(or ADDIN fields) to show values in ONLYOFFICE; it keeps working in Word as it is.
 
 **Driven end to end on the tab, against the running service:** Sign In, Connection Status, Open
 (dialog → staged file → new tab), Check In (save → upload → dialog → toast → state → tab

@@ -178,7 +178,12 @@
                     out.push(props ? "custom properties: yes" : "custom properties: not in this build");
                 } catch (e) { out.push("no document builder"); }
                 return out.join(", ");
-            }, {}, function (seen) { callback(line + " Fields: " + (seen || "not readable") + "."); });
+            }, {}, function (seen) {
+                method("GetAllAddinFields", [], function (fields) {
+                    var addin = Array.isArray(fields) ? fields.map(function (f) { return JSON.stringify(f); }).join(" ") : "none";
+                    callback(line + " Fields: " + (seen || "not readable") + ". ADDIN fields: " + addin);
+                });
+            });
         });
     }
 
@@ -188,12 +193,15 @@
     // names; a presentation's named shapes. Values PLM owns arrive already written into a staged
     // file by the service, so these only matter for Edit Values, Refresh Values and Save As.
     //
-    // MEASURED (Desktop Editors 9.4.0): a content control tagged with the attribute name shows
-    // the written value at once. A custom property is written and reads back, but a DOCPROPERTY
-    // field showing it keeps its cached text - ONLYOFFICE's SDK parses MERGEFIELD, ADDIN,
-    // FORMTEXT, PAGE, REF, TOC and the like, and not DOCPROPERTY. So a template meant for this
-    // host puts each field in a content control whose tag is the attribute name: the Word add-in
-    // writes those too, and the Vault's Word connector reads them by tag, then alias.
+    // MEASURED (Desktop Editors 9.4.0), one document with all four side by side:
+    //   content control tagged with the attribute   -> shows the value at once
+    //   { ADDIN <attribute> }                        -> shows the value at once (UpdateAddinFields)
+    //   { MERGEFIELD <attribute> }                   -> unchanged; only mail merge refreshes it
+    //   { DOCPROPERTY <attribute> }                  -> unchanged; the SDK does not parse it
+    // A custom property is written and reads back either way. So a template meant for this host
+    // shows each attribute through a content control tagged with its name (the Word add-in
+    // writes those too, and the Vault's Word connector reads them by tag, then alias) or through
+    // ONLYOFFICE's own ADDIN field, typed as "ADDIN <attribute>" in Insert > Field.
 
     var READERS = {
         word: function () {
@@ -299,6 +307,10 @@
                     } catch (e3) { /* locked control */ }
                 }
             } catch (e) { /* no document */ }
+            // NOT MERGEFIELD: ONLYOFFICE refreshes those only by mail merge, which produces
+            // merged copies rather than updating the field in place - the builder's
+            // LoadMailMergeData + MailMerge changed nothing here and left a stray paragraph
+            // (measured). ADDIN fields are written after this script, by plugin method.
             return written;
         },
         cell: function () {
@@ -355,11 +367,36 @@
         command(reader, { names: names || [] }, function (out) { callback(out || {}); });
     }
 
+    /**
+     * The document's ADDIN fields whose value names an attribute get the attribute's value as
+     * their content. This is ONLYOFFICE's own plugin field: { ADDIN <id> <value> } in the file,
+     * {FieldId, Value, Content} to a plugin, re-displayed by UpdateAddinFields.
+     */
+    function writeAddinFields(values, callback) {
+        method("GetAllAddinFields", [], function (fields) {
+            if (!Array.isArray(fields) || !fields.length) { callback(0); return; }
+            var updates = [];
+            fields.forEach(function (f) {
+                var key = f && typeof f.Value === "string" ? f.Value.trim() : "";
+                if (!key || !values.hasOwnProperty(key)) { return; }
+                var v = values[key];
+                if (v === null || v === undefined || v === "") { return; }
+                updates.push({ FieldId: f.FieldId, Value: f.Value, Content: String(v) });
+            });
+            if (!updates.length) { callback(0); return; }
+            method("UpdateAddinFields", [updates], function () { callback(updates.length); });
+        });
+    }
+
     /** Write PLM's values into the document's fields. Answers how many were written. */
     function writeFields(editorType, values, callback) {
         var writer = WRITERS[editorType];
         if (!writer || !values) { callback(0); return; }
-        command(writer, { values: values }, function (n) { callback(typeof n === "number" ? n : 0); });
+        command(writer, { values: values }, function (n) {
+            var written = typeof n === "number" ? n : 0;
+            if (editorType !== "word") { callback(written); return; }
+            writeAddinFields(values, function (more) { callback(written + more); });
+        });
     }
 
     // ── comments ─────────────────────────────────────────────────────────────
