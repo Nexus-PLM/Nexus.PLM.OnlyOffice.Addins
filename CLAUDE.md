@@ -97,14 +97,20 @@ remembered in the tab that asked for it.
 local file (the file's timestamp moves). Whether the document is dirty cannot be read, so it is
 asked for before every upload, as Word saves before every upload.
 
-**Values:** `Api.GetDocument().GetCustomProperties().Add(name, value)` writes a custom property
-and `Get` reads it back — measured through Refresh Values on a document whose header shows the
-properties through `DOCPROPERTY` fields. Those fields keep showing their cached text: ONLYOFFICE's
-`UpdateAllFields` does not re-evaluate `DOCPROPERTY`. The file's properties are right, which is
-what the Vault's template connector and Word read; only the on-screen text is stale. And only
-what the type's Data Model → Templates section MAPS comes back at all: the n5EMICAR answer was
-seven attributes, and `NXDocumentClassification` was not among them because its mapping is
-document → PLM. A placeholder that stays is first a mapping question, then a rendering one.
+**Values, and the template syntax this host needs.** `Api.GetDocument().GetCustomProperties()
+.Add(name, value)` writes a custom property and `Get` reads it back. But a `DOCPROPERTY` field
+showing that property keeps its cached text: ONLYOFFICE's SDK parses MERGEFIELD, ADDIN, FORMTEXT,
+FORMCHECKBOX, PAGE, NUMPAGES, PAGEREF, HYPERLINK, TOC, SEQ, STYLEREF, REF, DATE, TIME, NOTEREF,
+ASK and IF — not DOCPROPERTY (and `STRING \@"..."` is no field type anywhere). Do NOT call
+`UpdateAllFields` after writing: it turns a DOCPROPERTY field into "Error! Reference source not
+found" (measured; that cost a document title). What ONLYOFFICE renders at once is a **content
+control whose tag (or alias) is the attribute name**: three of them, written by Refresh Values,
+read "EM-00000040-DOC / A / admin" in the same document whose DOCPROPERTY cells stayed
+placeholders. That is the syntax a template meant for ONLYOFFICE must use, and it is already
+shared: the Word add-in writes content controls by title or tag, and the Vault's Word connector
+(`WordTemplateConnector`) reads `SdtElement` by tag, then alias. Only what the type's Data Model
+→ Templates section maps comes back at all: n5EMICAR answered seven attributes, and
+`NXDocumentClassification` was not among them because its mapping is document → PLM.
 
 **Driven end to end on the tab, against the running service:** Sign In, Connection Status, Open
 (dialog → staged file → new tab), Check In (save → upload → dialog → toast → state → tab

@@ -187,6 +187,13 @@
     // content controls (by alias, then tag) and custom properties; a spreadsheet's defined
     // names; a presentation's named shapes. Values PLM owns arrive already written into a staged
     // file by the service, so these only matter for Edit Values, Refresh Values and Save As.
+    //
+    // MEASURED (Desktop Editors 9.4.0): a content control tagged with the attribute name shows
+    // the written value at once. A custom property is written and reads back, but a DOCPROPERTY
+    // field showing it keeps its cached text - ONLYOFFICE's SDK parses MERGEFIELD, ADDIN,
+    // FORMTEXT, PAGE, REF, TOC and the like, and not DOCPROPERTY. So a template meant for this
+    // host puts each field in a content control whose tag is the attribute name: the Word add-in
+    // writes those too, and the Vault's Word connector reads them by tag, then alias.
 
     var READERS = {
         word: function () {
@@ -265,9 +272,10 @@
                         try { props.Add(name, String(values[name])); written++; } catch (e1) { /* refused */ }
                     }
                 } catch (e2) { /* no custom properties API */ }
-                // A template shows a property through a DOCPROPERTY field, which repeats the
-                // value it last saw until the fields are updated - Word's F9.
-                try { if (written && typeof doc.UpdateAllFields === "function") { doc.UpdateAllFields(); } } catch (e6) { /* stays stale */ }
+                // NOT UpdateAllFields: ONLYOFFICE does not parse DOCPROPERTY, and updating turns
+                // such a field into "Error! Reference source not found" (measured). A property
+                // shown through a DOCPROPERTY field keeps its cached text here; a template meant
+                // for ONLYOFFICE shows the value through a content control instead - see below.
                 var controls = doc.GetAllContentControls();
                 for (var i = 0; i < controls.length; i++) {
                     try {
