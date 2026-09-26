@@ -115,12 +115,28 @@ section maps comes back at all: n5EMICAR answered seven attributes, and
 existing n5EMICAR template is DOCPROPERTY-based, so it needs re-authoring with content controls
 (or ADDIN fields) to show values in ONLYOFFICE; it keeps working in Word as it is.
 
+**The first click into the pane is spent on focus.** With the pane freshly docked, the first
+mousedown inside the plugin frame only gives that frame focus — no `click` reaches the page, so the
+row highlights on hover and nothing selects. The second click acts. Once the frame has focus it
+keeps it across switching to another application and back, so this costs one click per pane, not
+one per visit. Nothing in the page can fix it: the click is consumed above the frame. It is worth
+knowing because it looks exactly like a dead click handler, and half an hour went into that.
+
 **Driven end to end on the tab, against the running service:** Sign In, Connection Status, Open
 (dialog → staged file → new tab), Check In (save → upload → dialog → toast → state → tab
-re-drawn), Check Out, Edit Values (dialog), Refresh Values (7 values written), Navigator (docks
-left, buttons follow the state). Not yet exercised: New, Search, Save As, Save As Existing,
-Release, Revise, Reload Document, Change Ownership, Markup, Apply markups, Worklist, New Workflow,
-Properties, Settings, About — their bodies and follow-through are tested, not driven.
+re-drawn), Check Out, Edit Values (dialog), Refresh Values (7 values written). Not yet exercised:
+New, Search, Save As, Save As Existing, Release, Revise, Reload Document, Change Ownership, Markup,
+Apply markups, Worklist, New Workflow, Properties, Settings, About — their bodies and
+follow-through are tested, not driven.
+
+**Driven end to end in the Navigator pane:** docks left; the tree nests, expands on its twisties
+and carries its badges; picking a folder lists it; picking a row lights exactly the actions its
+lock allows; Check Out took the lock and the list came back showing it; Check In then lit (my lock,
+and that document open in this tab), saved, uploaded, and the row came back with the lock gone;
+Properties opened the panel for the SELECTED row rather than the open document; the search box
+found one item and headed it "1 MATCH"; clearing the box restored the folder; Refresh re-read both
+halves. The pane was driven in a SECOND editor tab, which is also how it was confirmed that each
+tab gets its own copy of the plugin with its own state.
 
 ## Rules carried over from the other add-ins
 

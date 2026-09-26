@@ -1,70 +1,249 @@
 /*
- * The panel's look. Deliberately small: ONLYOFFICE serves its own plugins.css, which already
- * matches the editor's theme, so anything set here is only what that does not cover. Overriding
- * the editor's colours would make the plugin the one thing on screen that ignores the user's
- * theme.
+ * The docked Navigator.
+ *
+ * The same three-band column Word docks beside the document (`navigatorPane.css` in the React
+ * client): search, tree, items, then the actions and a status strip. A task pane is narrow and
+ * full height, which is what decides the layout in both hosts.
+ *
+ * ONLYOFFICE serves its own plugins.css, which matches the editor's theme, so this only sets
+ * what that does not cover. The `--c-*` tokens are the web client's, copied here because a
+ * plugin frame cannot reach its stylesheet — the values, not a second opinion about them.
  */
 
-#nexus-plm-panel {
-    padding: 12px;
+:root {
+    --c-bg-base:    #0A1820;
+    --c-bg-surface: #0F1E2A;
+    --c-bg-deep:    #071219;
+    --c-bg-alt:     #1A2E40;
+    --c-hover:      #1E3A50;
+    --c-border:     #2A4A60;
+    --c-text-dim:   #507080;
+    --c-text-sub:   #90B8CC;
+    --c-text-body:  #B8D8E8;
+    --c-text:       #E8F4F8;
+    --c-accent:     #00B4D8;
+    --c-accent-bg:  #2A5A70;
+    --c-warn:       #E8A33D;
+}
+
+html, body { height: 100%; margin: 0; }
+
+.np-root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--c-bg-base);
+    color: var(--c-text-body);
+    font-size: 12px;
+    overflow: hidden;
+}
+
+/* ── Search band ─────────────────────────────────────────────────────────── */
+
+.np-search {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    border-bottom: 1px solid var(--c-border);
+    background: var(--c-bg-surface);
+    flex: 0 0 auto;
+}
+
+/* Entry fields are recessed, pickers raised: the entry-vs-selection rule the web client keeps. */
+.np-search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 5px 8px;
+    border: 1px solid var(--c-border);
+    border-radius: 3px;
+    background: #0A1520;
+    color: var(--c-text);
     font-size: 12px;
 }
 
-#panel-title {
-    font-size: 13px;
-    font-weight: 600;
-    margin: 0 0 8px 0;
-}
+.np-search input::placeholder { color: var(--c-text-dim); }
+.np-search input:focus { outline: none; border-color: var(--c-accent); }
 
-#panel-headline {
-    margin: 0 0 12px 0;
-}
-
-/* Label and value on one line each, the value able to wrap: a part number must never be cut. */
-#panel-rows {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 4px 10px;
-    margin: 0 0 14px 0;
-}
-
-#panel-rows dt {
-    font-weight: 600;
-}
-
-#panel-rows dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-}
-
-#panel-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.nexus-button {
-    width: 100%;
-    padding: 6px 8px;
+.np-icon-btn {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--c-border);
+    border-radius: 3px;
+    background: var(--c-bg-alt);
+    color: var(--c-text-sub);
+    font-size: 14px;
+    line-height: 1;
     cursor: pointer;
 }
 
-.nexus-button:disabled {
-    cursor: default;
-    opacity: 0.5;
+.np-icon-btn:hover { background: var(--c-hover); color: var(--c-text); }
+
+/* ── Tree band ───────────────────────────────────────────────────────────── */
+
+.np-tree {
+    flex: 1 1 45%;
+    overflow: auto;
+    padding: 4px 0;
 }
 
-/* A group heading in the command list, mirroring the Word ribbon's groups. Quiet: it separates,
-   it does not compete with the commands under it. */
-.nexus-group {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
+.np-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px 3px 0;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.np-row:hover { background: var(--c-hover); }
+.np-row[aria-selected="true"] { background: var(--c-accent-bg); color: var(--c-text); }
+
+.np-twisty {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: none;
+    background: none;
+    color: var(--c-text-dim);
+    font-size: 9px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.np-row-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+
+.np-count {
+    flex: 0 0 auto;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--c-bg-alt);
+    color: var(--c-text-dim);
+    font-size: 10px;
+    text-align: center;
+}
+
+/* ── Item band ───────────────────────────────────────────────────────────── */
+
+.np-items {
+    flex: 1 1 55%;
+    overflow: auto;
+    border-top: 1px solid var(--c-border);
+    background: var(--c-bg-deep);
+}
+
+.np-band-head {
+    position: sticky;
+    top: 0;
+    padding: 5px 8px;
+    background: var(--c-bg-surface);
+    border-bottom: 1px solid var(--c-border);
+    color: var(--c-text-dim);
+    font-size: 10px;
     letter-spacing: 0.04em;
-    opacity: 0.6;
-    margin: 12px 0 4px 0;
+    text-transform: uppercase;
 }
 
-.nexus-group:first-child {
-    margin-top: 0;
+.np-card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--c-bg-alt);
+    cursor: pointer;
+}
+
+.np-card:hover { background: var(--c-hover); }
+.np-card[aria-selected="true"] { background: var(--c-accent-bg); }
+
+.np-card-top { display: flex; align-items: center; gap: 6px; }
+
+.np-part {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--c-text);
+    font-weight: 600;
+}
+
+.np-rev { flex: 0 0 auto; color: var(--c-text-dim); font-size: 11px; }
+
+.np-status {
+    flex: 0 0 auto;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--c-text-sub);
+}
+
+.np-desc {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--c-text-dim);
+    font-size: 11px;
+}
+
+/* My own lock reads as available to me; someone else's reads as a warning. */
+.np-lock { font-size: 10px; }
+.np-lock-mine   { color: var(--c-accent); }
+.np-lock-theirs { color: var(--c-warn); }
+
+/* ── Actions on the selected row ─────────────────────────────────────────── */
+
+.np-actions {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--c-border);
+    background: var(--c-bg-surface);
+    flex: 0 0 auto;
+}
+
+.np-actions button {
+    flex: 1 1 0;
+    padding: 5px 4px;
+    border: 1px solid var(--c-border);
+    border-radius: 3px;
+    background: var(--c-bg-alt);
+    color: var(--c-text-body);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.np-actions button:hover:not(:disabled) { background: var(--c-hover); color: var(--c-text); }
+.np-actions button:disabled { opacity: 0.45; cursor: default; }
+
+/* ── Messages ────────────────────────────────────────────────────────────── */
+
+.np-message {
+    padding: 12px 10px;
+    color: var(--c-text-dim);
+    text-align: center;
+}
+
+.np-error {
+    padding: 6px 8px;
+    background: #3A1E1E;
+    border-bottom: 1px solid #5A2E2E;
+    color: #F0C0C0;
+    font-size: 11px;
+}
+
+.np-status-strip {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-top: 1px solid var(--c-border);
+    background: var(--c-bg-surface);
+    color: var(--c-text-dim);
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

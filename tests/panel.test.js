@@ -1,96 +1,58 @@
 /*
- * What the panel shows, tested with no ONLYOFFICE and no browser.
+ * What the Navigator says when it cannot show the vault.
  *
- * Node's own test runner and assert — no framework, because a scaffold that needs an install
- * before its tests run is a scaffold people stop running.
+ * Four different failures, said four different ways. Reporting all of them as "sign in" was
+ * wrong: only one of them is fixed by signing in, and a plugin nobody installed properly would
+ * send the user looking at permissions in PLM instead.
  */
 
 const test = require("node:test");
 const assert = require("node:assert");
 
 const panel = require("../plugin/lib/panel.js");
-const editors = require("../plugin/lib/editors.js");
 
-const CHECKED_IN = { status: "checked_in", part_number: "NX00000042", revision: "B", type_name: "n5Doc" };
-const MINE = { status: "checked_out", checked_out_by: "admin", part_number: "NX00000042", revision: "B" };
-const THEIRS = { status: "checked_out", checked_out_by: "jdoe", part_number: "NX00000042", revision: "B" };
-
-test("a document PLM knows is named by its part number", () => {
-    assert.strictEqual(panel.headline(CHECKED_IN, { hasDocument: true }), "NX00000042");
+test("nothing wrong is nothing said", () => {
+    assert.strictEqual(panel.trouble({ signedIn: true, hasSecret: true }), null);
+    assert.strictEqual(panel.trouble({}), null);
 });
 
-test("a document PLM has never seen says so as a fact, not a failure", () => {
-    assert.strictEqual(panel.headline(null, { hasDocument: true }), panel.NOT_IN_PLM);
+test("the missing secret is reported before anything else", () => {
+    // With no secret every call is refused, so any other message would be a guess about a
+    // service that never answered.
+    assert.strictEqual(
+        panel.trouble({ hasSecret: false, unreachable: true, refused: true, signedIn: false }),
+        panel.NOT_INSTALLED);
+    assert.match(panel.NOT_INSTALLED, /install step/);
 });
 
-test("no document open is a different thing from not in PLM", () => {
-    assert.strictEqual(panel.headline(null, { hasDocument: false }), panel.NO_DOCUMENT);
+test("a service that is not answering is not reported as signed out", () => {
+    assert.strictEqual(panel.trouble({ unreachable: true, signedIn: false }), panel.NOT_RUNNING);
+    assert.match(panel.NOT_RUNNING, /tray application/);
 });
 
-test("signed out is reported as signed out, whatever the document is", () => {
-    // Otherwise every document in the vault reads as "not in PLM" the moment a session expires,
-    // which sends the user looking for a problem with their file.
-    assert.strictEqual(panel.headline(CHECKED_IN, { signedIn: false }), panel.NOT_SIGNED_IN);
+test("a refusal is its own message, and names the fix", () => {
+    assert.strictEqual(panel.trouble({ refused: true }), panel.REFUSED);
+    assert.match(panel.REFUSED, /install step/);
 });
 
-test("a status of unknown is not in PLM", () => {
-    // The service answers unknown both for a file it has never seen and for one it could not
-    // resolve. The panel can only honestly speak to what it can show.
-    assert.strictEqual(panel.isInPlm({ status: "unknown" }), false);
+test("signed out says where Sign In actually is, because it is not in the pane", () => {
+    assert.strictEqual(panel.trouble({ signedIn: false }), panel.NOT_SIGNED_IN);
+    assert.match(panel.NOT_SIGNED_IN, /Nexus PLM tab/);
 });
 
-test("every row is present even when there is nothing to put in it", () => {
-    const rows = panel.rowsFor(null);
-    assert.strictEqual(rows.length, panel.ROWS.length);
-    assert.ok(rows.every(([, value]) => value === panel.ABSENT));
+test("a read's own error is shown when the connection itself is fine", () => {
+    assert.strictEqual(
+        panel.trouble({ signedIn: true, error: "The folder tree could not be read." }),
+        "The folder tree could not be read.");
 });
 
-test("a missing value shows the absent mark rather than an empty cell", () => {
-    const rows = panel.rowsFor({ status: "checked_in", part_number: "NX00000042" });
-    const description = rows.find(([label]) => label === "Description");
-    assert.strictEqual(description[1], panel.ABSENT);
+test("the pane names the editor it is in, so two open at once are told apart", () => {
+    assert.strictEqual(panel.title("word"), "Nexus PLM — Document");
+    assert.strictEqual(panel.title("cell"), "Nexus PLM — Spreadsheet");
+    assert.strictEqual(panel.title("slide"), "Nexus PLM — Presentation");
 });
 
-test("the lifecycle word is shown the way a person says it", () => {
-    const rows = panel.rowsFor(CHECKED_IN);
-    assert.strictEqual(rows.find(([label]) => label === "Status")[1], "Checked in");
-});
-
-test("a checked-in document offers Check Out and not Check In", () => {
-    const allowed = panel.enabledButtons(CHECKED_IN, "admin");
-    assert.ok(allowed.includes("check_out"));
-    assert.ok(!allowed.includes("check_in"));
-});
-
-test("a document checked out to me offers Check In and Save", () => {
-    const allowed = panel.enabledButtons(MINE, "admin");
-    assert.ok(allowed.includes("check_in"));
-    assert.ok(allowed.includes("save"));
-    assert.ok(!allowed.includes("check_out"));
-});
-
-test("a document checked out to somebody else offers neither", () => {
-    // The service would refuse, and an offer that is always refused is worse than no offer.
-    const allowed = panel.enabledButtons(THEIRS, "admin");
-    assert.ok(!allowed.includes("check_in"));
-    assert.ok(!allowed.includes("check_out"));
-    assert.ok(!allowed.includes("save"));
-});
-
-test("nothing is offered for a document PLM does not know", () => {
-    assert.deepStrictEqual(panel.enabledButtons(null, "admin"), []);
-});
-
-test("not knowing who is signed in never makes a document mine", () => {
-    assert.ok(!panel.enabledButtons(MINE, null).includes("check_in"));
-});
-
-test("the panel names the editor it is in, so two open at once are told apart", () => {
-    assert.strictEqual(panel.title(editors.WORD), "Nexus PLM — Document");
-    assert.strictEqual(panel.title(editors.CELL), "Nexus PLM — Spreadsheet");
-    assert.strictEqual(panel.title(editors.SLIDE), "Nexus PLM — Presentation");
-});
-
-test("an editor ONLYOFFICE has not told us about still gets a panel", () => {
-    assert.strictEqual(panel.title("pdf"), "Nexus PLM");
+test("an editor ONLYOFFICE has not told us about still gets a title", () => {
+    assert.strictEqual(panel.title(null), "Nexus PLM");
+    assert.strictEqual(panel.title("diagram"), "Nexus PLM");
 });
