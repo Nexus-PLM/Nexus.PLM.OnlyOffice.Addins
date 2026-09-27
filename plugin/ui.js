@@ -81,7 +81,11 @@
     // ── the pane's own commands ──────────────────────────────────────────────
 
     function say(message, severity) {
-        if (message) { client.notify(message, severity || "info"); }
+        if (!message) { return; }
+        client.notify(message, severity || "info").then(function (answer) {
+            // The toast is the tray's; with the tray closed the pane says it in its own band.
+            if (answer && answer.unreachable) { errorText = message; draw(); }
+        });
     }
 
     /**

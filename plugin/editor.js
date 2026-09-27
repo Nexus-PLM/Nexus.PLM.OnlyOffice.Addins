@@ -154,37 +154,139 @@
         }, {}, function (asked) { callback(!!asked); });
     }
 
+    // ── what Connection Status can see ──────────────────────────────────────
+    // One probe per editor, keyed the way READERS and WRITERS are, because the builder Api is a
+    // different object in each: a spreadsheet has no Api.GetDocument, a presentation has no
+    // content controls. The probe used to ask every editor the Document's questions, so
+    // Connection Status in a Spreadsheet or a Presentation reported "no document builder" - a
+    // sentence about a builder that was there, answering a question that was not its own.
+    // Each function runs INSIDE the editor's frame (callCommand serialises it), so it can use only
+    // Api and Asc.scope.
+
+    var PROBES = {
+        word: function () {
+            var out = [];
+            try {
+                var d = Api.GetDocument();
+                var controls = d.GetAllContentControls();
+                var named = 0;
+                for (var i = 0; i < controls.length; i++) {
+                    try { if (controls[i].GetAlias() || controls[i].GetTag()) { named++; } } catch (e1) { /* skip */ }
+                }
+                out.push(named + " named content control(s)");
+                var props = null;
+                try { props = d.GetCustomProperties(); } catch (e0) { /* none */ }
+                out.push(props ? "custom properties: yes" : "custom properties: not in this build");
+            } catch (e) { out.push("no document builder"); }
+            return out.join(", ");
+        },
+        cell: function () {
+            var out = [];
+            try {
+                var names = Api.GetDefNames() || [];
+                out.push(names.length + " defined name(s)");
+                var props = null;
+                try { props = Api.GetCustomProperties(); } catch (e0) { /* none */ }
+                out.push(props ? "custom properties: yes" : "custom properties: not in this build");
+            } catch (e) { out.push("no spreadsheet builder"); }
+            return out.join(", ");
+        },
+        slide: function () {
+            var out = [];
+            try {
+                var pres = Api.GetPresentation();
+                var count = pres.GetSlidesCount();
+                var named = 0;
+                var readable = true;
+                for (var s = 0; s < count; s++) {
+                    var shapes = pres.GetSlideByIndex(s).GetAllShapes();
+                    for (var i = 0; i < shapes.length; i++) {
+                        try {
+                            if (typeof shapes[i].GetName !== "function") { readable = false; continue; }
+                            if (shapes[i].GetName()) { named++; }
+                        } catch (e1) { /* not a text shape */ }
+                    }
+                }
+                out.push(readable ? named + " named shape(s) on " + count + " slide(s)"
+                                  : "shape names are not readable in this build");
+                var props = null;
+                try { props = pres.GetCustomProperties(); } catch (e0) { /* none */ }
+                out.push(props ? "custom properties: yes" : "custom properties: not in this build");
+            } catch (e) { out.push("no presentation builder"); }
+            return out.join(", ");
+        }
+    };
+
     /**
-     * One line for the Connection Status toast: what this plugin knows about the document, and
-     * what the field writer can see in it — so a value that did not land can be explained.
+     * One line for the Connection Status toast: what this plugin knows about the file, and what
+     * the field writer can see in it — so a value that did not land can be explained.
+     * @param editorType  "word" | "cell" | "slide", as the runner was told at init.
      */
-    function probe(callback) {
+    function probe(editorType, callback) {
+        var kind = window.NexusPlmEditors.describe(editorType);
+        var noun = kind ? kind.name : "Document";
         document(function (doc) {
             var line = doc.title
-                ? "Document: " + doc.title + (doc.path ? ", on disk at " + doc.path + "." : ". Its path is not known: open it through Nexus PLM (Open, Search or New) for uploads.")
-                : "No document is open.";
-            command(function () {
-                var out = [];
-                try {
-                    var d = Api.GetDocument();
-                    var controls = d.GetAllContentControls();
-                    var named = 0;
-                    for (var i = 0; i < controls.length; i++) {
-                        try { if (controls[i].GetAlias() || controls[i].GetTag()) { named++; } } catch (e1) { /* skip */ }
-                    }
-                    out.push(named + " named content control(s)");
-                    var props = null;
-                    try { props = d.GetCustomProperties(); } catch (e0) { /* none */ }
-                    out.push(props ? "custom properties: yes" : "custom properties: not in this build");
-                } catch (e) { out.push("no document builder"); }
-                return out.join(", ");
-            }, {}, function (seen) {
-                method("GetAllAddinFields", [], function (fields) {
-                    var addin = Array.isArray(fields) ? fields.map(function (f) { return JSON.stringify(f); }).join(" ") : "none";
-                    callback(line + " Fields: " + (seen || "not readable") + ". ADDIN fields: " + addin);
+                ? noun + ": " + doc.title + (doc.path ? ", on disk at " + doc.path + "." : ". Its path is not known: open it through Nexus PLM (Open, Search or New) for uploads.")
+                : "No " + noun.toLowerCase() + " is open.";
+            var look = PROBES[editorType];
+            var seen = function (fields) {
+                method("GetAllAddinFields", [], function (addinFields) {
+                    var addin = Array.isArray(addinFields) ? addinFields.map(function (f) { return JSON.stringify(f); }).join(" ") : "none";
+                    callback(line + " Fields: " + (fields || "not readable") + ". ADDIN fields: " + addin);
                 });
-            });
+            };
+            if (!look) { seen("not readable in an editor this plugin does not know"); return; }
+            command(look, {}, seen);
         });
+    }
+
+    // ── the one message the plugin can show on its own ──────────────────────
+
+    /** The notice window, while one is open. One at a time: a second message replaces the first. */
+    var notice = null;
+
+    /**
+     * Say something WITHOUT the tray: a small modal window of our own.
+     *
+     * Everything else the plugin says is a Nexus toast, and the toast is drawn by the tray
+     * application - so the one message the toast cannot carry is that the tray is not running.
+     * This is that message's only route to the screen; runner.js calls it when a toast comes back
+     * unreachable, and nowhere else, so the plugin does not grow a second style of message.
+     * Word answers this branch with a Windows message box for the same reason.
+     *
+     * Answers whether a window was opened: null when this build has no plugin windows.
+     */
+    function showNotice(message, severity) {
+        if (!message) { return false; }
+        if (!window.Asc || typeof window.Asc.PluginWindow !== "function") { return null; }
+        if (notice) {
+            try { notice.close(); } catch (e) { /* already gone */ }
+            notice = null;
+        }
+        var payload = encodeURIComponent(JSON.stringify({ message: String(message), severity: severity || "info" }));
+        notice = new window.Asc.PluginWindow();
+        notice.show({
+            url: "notice.html#" + payload,
+            description: "Nexus PLM",
+            isVisual: true,
+            isModal: true,
+            isCanDocked: false,
+            EditorsSupport: EDITORS,
+            size: [440, 150],
+            buttons: [{ text: "OK", primary: true }]
+        });
+        return true;
+    }
+
+    /** A button in a window of ours: the notice has one, and it closes the notice. */
+    function windowButton(id, windowId) {
+        if (notice && notice.id === windowId) {
+            try { notice.close(); } catch (e) { /* already gone */ }
+            notice = null;
+            return true;
+        }
+        return false;
     }
 
     // ── the document's fields ────────────────────────────────────────────────
@@ -443,6 +545,7 @@
     /** ONLYOFFICE reports a window closing through Asc.plugin.button(-1, windowId). */
     function windowClosed(windowId) {
         if (panel && panel.id === windowId) { panel = null; }
+        if (notice && notice.id === windowId) { notice = null; }
     }
 
     function panelOpen() { return !!panel; }
@@ -458,8 +561,10 @@
         addComment: addComment,
         togglePanel: togglePanel,
         windowClosed: windowClosed,
+        windowButton: windowButton,
         panelOpen: panelOpen,
-        probe: probe
+        probe: probe,
+        showNotice: showNotice
     };
 
 })(window);

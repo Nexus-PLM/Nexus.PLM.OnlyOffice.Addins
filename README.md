@@ -39,6 +39,7 @@ plugin/
   index.html, ui.js  the Navigator pane's frame and DOM, and nothing it decides for itself
   runner.js          the one path a press takes, whether from the tab or the panel
   editor.js          the editor and the desktop shell, as a plugin frame can reach them
+  notice.html/js     the one message the plugin shows by itself: that the tray is not running
   plugin.js          the Asc.plugin callbacks for the panel, and nothing else
   lib/
     commands.js      the ONE table: every command, its group, endpoint, body and enable rule
@@ -88,6 +89,17 @@ ONLYOFFICE, LibreOffice, Word, Excel, PowerPoint and FreeCAD. A host declares wh
 travels with the request; **the service needs no change for a new host.** If this plugin ever seems
 to need one, the question to ask is what it should be declaring instead.
 
+Every message the plugin raises is the service's own toast, drawn by the tray application, so a
+refusal here looks exactly like a refusal in Word. That leaves one message the toast cannot carry:
+that the tray is not running. For that case only, the plugin opens a small window of its own
+(`notice.html`) — so Connection Status, About and a pressed command answer on screen rather than
+in silence when the tray is closed. Word answers the same branch with a Windows message box.
+
+**Connection Status** reports what the field writer can see in the open file, and asks the question
+the editor can answer: named content controls in a Document, defined names in a Spreadsheet,
+named shapes in a Presentation. It used to ask every editor the Document's question, and reported
+"no document builder" in the other two.
+
 ## How it reaches the service — measured, Desktop Editors 9.4.0, Sep 24 2026
 
 The plugin declares **`"onlyofficeScheme": true`**, and that one line is what makes the whole thing
@@ -111,6 +123,12 @@ to allow `null` at all.
 is mixed content, which no CORS or scheme change fixes — the browser refuses before any header is
 read. That is a prediction from how the mechanisms work, not a measurement; nothing was listening
 on 80/443/8080/8443 on the server when this was written.
+
+**The notice window's message travels in the URL fragment** (`notice.html#<json>`). That a plugin
+window opens from `Asc.PluginWindow.show({ url })` is measured — the Navigator opens that way —
+but that the fragment survives the trip has not yet been driven with the tray closed. `notice.js`
+falls back to a plain "nothing to report" line if it does not, so the failure would be a wrong
+message rather than a blank window.
 
 ## No connector in this repo, on purpose
 

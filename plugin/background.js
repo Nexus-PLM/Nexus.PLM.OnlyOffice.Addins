@@ -63,9 +63,10 @@
     /** The document changed under us; what the commands may do may have changed too. */
     window.Asc.plugin.onDocumentContentReady = function () { if (runner) { runner.refresh(); } };
 
-    /** A window of ours closing arrives here with id -1. */
+    /** A window of ours closing arrives here with id -1; any other id is one of its buttons. */
     window.Asc.plugin.button = function (id, windowId) {
         if (id === -1) { editor.windowClosed(windowId); }
+        else { editor.windowButton(id, windowId); }
     };
 
     window.Asc.plugin.onExternalMouseUp = function () {};
