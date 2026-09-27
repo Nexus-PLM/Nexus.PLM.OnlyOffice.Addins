@@ -115,6 +115,13 @@ section maps comes back at all: n5EMICAR answered seven attributes, and
 existing n5EMICAR template is DOCPROPERTY-based, so it needs re-authoring with content controls
 (or ADDIN fields) to show values in ONLYOFFICE; it keeps working in Word as it is.
 
+**A plugin window's url may not carry a fragment.** `Asc.PluginWindow.show({ url: "page.html#x" })`
+opens the window and the page **never loads** — the editor's own "Loading" spinner stays for ever,
+nothing is logged, and the window cannot be closed; the editor has to be killed. The same page with
+no fragment loads at once. Found by driving the tray-down notice window, which the fragment turned
+from "says the one thing the toast cannot" into a hang. Anything a window needs to be told goes
+through the plugin's shared storage instead (`lib/paths.js` measured that route first).
+
 **The first click into the pane is spent on focus.** With the pane freshly docked, the first
 mousedown inside the plugin frame only gives that frame focus — no `click` reaches the page, so the
 row highlights on hover and nothing selects. The second click acts. Once the frame has focus it

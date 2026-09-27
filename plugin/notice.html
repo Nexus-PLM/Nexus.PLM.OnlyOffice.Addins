@@ -12,8 +12,10 @@
         of our own for that case, opened by editor.js when a toast comes back unreachable, so the
         button a user presses when nothing works does not answer with silence.
 
-        The message travels in the URL fragment: a plugin window is loaded under the editor's own
-        scheme, and a fragment is the one part of a URL no scheme handler ever sees.
+        The message travels through the plugin's own storage, which every frame of this plugin
+        shares. It was in the URL fragment first, and a plugin window whose url carries a `#`
+        never loads its page at all (measured, Desktop Editors 9.4.0) - it shows the editor's
+        "Loading" spinner for ever.
     -->
     <script type="text/javascript" src="../v1/plugins.js"></script>
     <link rel="stylesheet" href="styles.css" />

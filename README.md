@@ -94,6 +94,15 @@ refusal here looks exactly like a refusal in Word. That leaves one message the t
 that the tray is not running. For that case only, the plugin opens a small window of its own
 (`notice.html`) — so Connection Status, About and a pressed command answer on screen rather than
 in silence when the tray is closed. Word answers the same branch with a Windows message box.
+**Driven end to end** on Desktop Editors 9.4.0 with the tray stopped: the window opens, says it,
+and its OK closes it; with the tray running the same press raises the toast and no window.
+
+**The message reaches that window through the plugin's own storage, and that is not a detail.**
+It was passed in the URL fragment first — `notice.html#<json>` — and a plugin window whose url
+carries a `#` **never loads its page**: it shows the editor's own "Loading" spinner for ever,
+logs nothing, and cannot be closed, so the window written to break a silence was worse than the
+silence. The Navigator's `index.html`, with no fragment, has always loaded. Storage is the route
+`lib/paths.js` already uses: every frame of this plugin shares one origin.
 
 **Connection Status** reports what the field writer can see in the open file, and asks the question
 the editor can answer: named content controls in a Document, defined names in a Spreadsheet,
@@ -124,11 +133,6 @@ is mixed content, which no CORS or scheme change fixes — the browser refuses b
 read. That is a prediction from how the mechanisms work, not a measurement; nothing was listening
 on 80/443/8080/8443 on the server when this was written.
 
-**The notice window's message travels in the URL fragment** (`notice.html#<json>`). That a plugin
-window opens from `Asc.PluginWindow.show({ url })` is measured — the Navigator opens that way —
-but that the fragment survives the trip has not yet been driven with the tray closed. `notice.js`
-falls back to a plain "nothing to report" line if it does not, so the failure would be a wrong
-message rather than a blank window.
 
 ## No connector in this repo, on purpose
 
