@@ -1,4 +1,10 @@
-# Installs the plugin into ONLYOFFICE, and gives it the secret it needs to be trusted as local.
+# DEVELOPMENT ONLY. Installs the plugin into ONLYOFFICE from this working copy, and gives it the
+# secret it needs to be trusted as local.
+#
+# This is not how the plugin ships. installer\Nexus.PLM.OnlyOffice.Addin.iss builds a proper
+# per-user installer that does the same two things, and that is what goes on other machines:
+# nothing user-facing may depend on a script on a developer's box. This exists so a change can be
+# tried without recompiling an installer.
 #
 #   pwsh tools/install.ps1                 # install for the current user
 #   pwsh tools/install.ps1 -Uninstall
