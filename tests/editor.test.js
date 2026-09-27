@@ -15,6 +15,16 @@ const vm = require("node:vm");
 
 const PLUGIN = path.join(__dirname, "..", "plugin");
 
+/** The plugin's own storage, which every frame of it shares. */
+function fakeStorage() {
+    const held = {};
+    return {
+        getItem: (k) => (Object.prototype.hasOwnProperty.call(held, k) ? held[k] : null),
+        setItem: (k, v) => { held[k] = String(v); },
+        removeItem: (k) => { delete held[k]; }
+    };
+}
+
 /**
  * A frame with editor.js loaded. `api` is what the probe finds as `Api`; `plugin` overrides the
  * parts of Asc.plugin a test cares about.
@@ -25,7 +35,7 @@ function frame(options) {
         console,
         JSON, String, Array, Object, encodeURIComponent, decodeURIComponent,
         setTimeout, clearTimeout,
-        localStorage: null,
+        localStorage: o.localStorage || fakeStorage(),
         NexusPlmPaths: require("../plugin/lib/paths.js"),
         NexusPlmEditors: require("../plugin/lib/editors.js"),
         Api: o.api || {},
@@ -140,9 +150,10 @@ function recordingWindow() {
     return { PluginWindow, shown };
 }
 
-test("the notice is a modal window of the plugin's own, carrying the message in the fragment", () => {
+test("the notice is a modal window of the plugin's own, and its message is left in storage", () => {
+    const storage = fakeStorage();
     const w = recordingWindow();
-    const f = frame({ PluginWindow: w.PluginWindow });
+    const f = frame({ PluginWindow: w.PluginWindow, localStorage: storage });
 
     const opened = f.NexusPlmEditor.showNotice("Nexus PLM is not running. Start the tray.", "error");
 
@@ -156,10 +167,55 @@ test("the notice is a modal window of the plugin's own, carrying the message in 
     assert.deepStrictEqual(Array.from(s.buttons, (b) => b.text), ["OK"]);
     assert.deepStrictEqual(Array.from(s.EditorsSupport), ["word", "cell", "slide"], "the notice serves every editor");
 
-    // The URL fragment is the one part of a URL the editor's scheme handler never sees.
-    assert.match(s.url, /^notice\.html#/);
-    const payload = JSON.parse(decodeURIComponent(s.url.replace(/^notice\.html#/, "")));
-    assert.deepStrictEqual(payload, { message: "Nexus PLM is not running. Start the tray.", severity: "error" });
+    assert.strictEqual(s.url, "notice.html");
+    assert.deepStrictEqual(JSON.parse(storage.getItem("nexusplm.notice.v1")),
+        { message: "Nexus PLM is not running. Start the tray.", severity: "error" });
+});
+
+test("the notice window's url carries NO fragment", () => {
+    // MEASURED, Desktop Editors 9.4.0: a plugin window whose url carries a `#` never loads its
+    // page. The window opens, shows the editor's own "Loading" spinner for ever, logs nothing,
+    // and cannot be closed - so the window written to break a silence became worse than the
+    // silence. The Navigator's own `index.html`, with no fragment, has always loaded. This is
+    // the whole reason the message goes through storage, so it is held on its own.
+    const w = recordingWindow();
+    const f = frame({ PluginWindow: w.PluginWindow });
+
+    f.NexusPlmEditor.showNotice("anything at all", "error");
+
+    assert.ok(!w.shown[0].settings.url.includes("#"),
+        "a plugin window url with a fragment never loads its page");
+});
+
+test("the message is in storage BEFORE the window is opened", () => {
+    // The page reads it as it loads, so writing it afterwards would be a race the user sees as
+    // the fallback line.
+    const storage = fakeStorage();
+    let atOpen = null;
+    class Watching {
+        constructor() { this.id = 1; }
+        show() { atOpen = storage.getItem("nexusplm.notice.v1"); }
+        close() {}
+    }
+    const f = frame({ PluginWindow: Watching, localStorage: storage });
+
+    f.NexusPlmEditor.showNotice("Nexus PLM is not running.", "error");
+
+    assert.ok(atOpen, "nothing was in storage when the window opened");
+    assert.strictEqual(JSON.parse(atOpen).message, "Nexus PLM is not running.");
+});
+
+test("storage that refuses does not stop the window opening", () => {
+    // A window saying the fallback line beats no window at all.
+    const refusing = {
+        getItem() { throw new Error("denied"); },
+        setItem() { throw new Error("denied"); }
+    };
+    const w = recordingWindow();
+    const f = frame({ PluginWindow: w.PluginWindow, localStorage: refusing });
+
+    assert.strictEqual(f.NexusPlmEditor.showNotice("anything", "error"), true);
+    assert.strictEqual(w.shown.length, 1);
 });
 
 test("the notice's OK button closes it, and a close box does the same", () => {
@@ -192,21 +248,45 @@ test("a build with no plugin windows answers null, and nothing is thrown", () =>
     assert.strictEqual(f.NexusPlmEditor.showNotice("", "info"), false, "nothing to say");
 });
 
-test("the notice page reads the same fragment the window was opened with", () => {
-    // notice.js is the other half of the contract: what showNotice encodes, it must decode.
-    const payload = encodeURIComponent(JSON.stringify({ message: "Nexus PLM is not running.", severity: "warning" }));
+/** The notice page, loaded against a given storage; answers the box it drew into. */
+function noticePage(storage) {
     const box = { textContent: "", className: "np-notice" };
     const context = {
-        JSON, String, decodeURIComponent,
-        location: { hash: "#" + payload },
+        JSON, String,
+        localStorage: storage,
         document: { getElementById: (id) => (id === "np-notice" ? box : null) },
         Asc: {}
     };
     context.window = context;
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(path.join(PLUGIN, "notice.js"), "utf8"), context, { filename: "notice.js" });
+    return { box, context };
+}
+
+test("the notice page reads what showNotice left in storage", () => {
+    // The two halves of one contract, exercised together: what the tab writes, the page reads.
+    const storage = fakeStorage();
+    const w = recordingWindow();
+    frame({ PluginWindow: w.PluginWindow, localStorage: storage })
+        .NexusPlmEditor.showNotice("Nexus PLM is not running.", "warning");
+
+    const { box, context } = noticePage(storage);
 
     assert.strictEqual(box.textContent, "Nexus PLM is not running.");
     assert.strictEqual(box.className, "np-notice np-notice-warning");
     assert.strictEqual(typeof context.Asc.plugin.init, "function", "the SDK expects init on every page");
+});
+
+test("the notice page never comes up blank", () => {
+    // An empty window is the failure this page exists to avoid, so with nothing to read it says
+    // the one thing it still knows.
+    const { box } = noticePage(fakeStorage());
+
+    assert.match(box.textContent, /tray application/);
+    assert.ok(box.textContent.length > 20, "a blank notice is worse than no notice");
+});
+
+test("the notice page survives storage it cannot read", () => {
+    const { box } = noticePage({ getItem() { throw new Error("denied"); } });
+    assert.match(box.textContent, /tray application/);
 });
