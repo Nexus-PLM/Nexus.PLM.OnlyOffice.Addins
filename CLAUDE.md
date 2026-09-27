@@ -186,7 +186,11 @@ it — which commands exist and when (`commands.js`), the tab payload (`toolbar.
 with an answer (`host.js`), comments to markups and back (`markup.js`), where a file is
 (`paths.js`), the panel (`panel.js`). `editor.js` (the editor and the desktop shell), `runner.js`
 (the one path a press takes, shared by the tab and the panel), `background.js`, `ui.js` and
-`plugin.js` are the glue that cannot be tested that way and are deliberately dull.
+`plugin.js` are the glue that cannot be tested that way and are deliberately dull. Two of them are
+nonetheless held by tests: `tests/editor.test.js` and `tests/runner.test.js` load the file into a
+`vm` context that plays the plugin frame (the context is `window`, so a probe's `Api` and
+`Asc.scope` are the objects the test put there). That is enough to hold which questions Connection
+Status asks each editor, and which way a message goes out when the tray is closed.
 
 ## Branches
 

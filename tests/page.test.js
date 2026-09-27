@@ -22,7 +22,7 @@ function scriptsOf(page) {
 }
 
 /** Every page the config.json variations load. */
-const PAGES = ["background.html", "index.html", "about.html"];
+const PAGES = ["background.html", "index.html", "about.html", "notice.html"];
 
 /** The two working pages: the resident half and the panel. Both run commands. */
 const WORKING = ["background.html", "index.html"];
