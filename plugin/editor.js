@@ -246,6 +246,9 @@
     /** The notice window, while one is open. One at a time: a second message replaces the first. */
     var notice = null;
 
+    /** Where the notice window reads its message. Versioned, as the paths store is. */
+    var NOTICE_KEY = "nexusplm.notice.v1";
+
     /**
      * Say something WITHOUT the tray: a small modal window of our own.
      *
@@ -254,6 +257,15 @@
      * This is that message's only route to the screen; runner.js calls it when a toast comes back
      * unreachable, and nowhere else, so the plugin does not grow a second style of message.
      * Word answers this branch with a Windows message box for the same reason.
+     *
+     * The message travels through STORAGE, not through the URL. It was a fragment first -
+     * `notice.html#<json>` - and that was MEASURED on Desktop Editors 9.4.0: the window opened,
+     * its page never loaded, and it sat on the editor's own "Loading" spinner for ever with no
+     * error anywhere and no way to close it but killing the editor. The Navigator opens
+     * `index.html` with no fragment and has always worked, so the fragment is what the editor
+     * will not resolve under its own scheme. Storage is the route paths.js already uses and
+     * measured: every frame of this plugin shares one origin, so what this tab writes the notice
+     * window reads.
      *
      * Answers whether a window was opened: null when this build has no plugin windows.
      */
@@ -264,10 +276,21 @@
             try { notice.close(); } catch (e) { /* already gone */ }
             notice = null;
         }
-        var payload = encodeURIComponent(JSON.stringify({ message: String(message), severity: severity || "info" }));
+
+        // Written BEFORE the window opens: the page reads it as it loads.
+        try {
+            var held = store();
+            if (held) {
+                held.setItem(NOTICE_KEY, JSON.stringify({
+                    message: String(message),
+                    severity: severity || "info"
+                }));
+            }
+        } catch (e) { /* storage refused; the window still opens and says what it can */ }
+
         notice = new window.Asc.PluginWindow();
         notice.show({
-            url: "notice.html#" + payload,
+            url: "notice.html",
             description: "Nexus PLM",
             isVisual: true,
             isModal: true,
