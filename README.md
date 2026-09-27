@@ -122,13 +122,41 @@ implementations of one format.
 
 ## Installing it
 
+Run **`NexusPlmOnlyOfficeAddinSetup.exe`**. It is per-user and asks for no administrator rights.
+Close ONLYOFFICE first: it reads its plugin list once, at startup.
+
+The installer puts the plugin in ONLYOFFICE's **user** plugin folder. The one under Program Files
+needs elevation and is replaced by the next ONLYOFFICE update, and the user folder has its own
+`v1`, so the `../v1/plugins.js` every plugin page loads still resolves.
+
+It also writes `secret.js` from this machine's Addin Service secret. That is what lets the service
+tell a local plugin from a website that forged an opaque origin, and without it the tab appears and
+every command is refused. So the installer says so plainly when it cannot find the secret: install
+the **Nexus PLM tray application**, start it once, then run the installer again.
+
+It does not install the tray application itself. That comes from `Nexus.PLM.WPF.Addins`, and two
+installers writing the same files is how one of them silently wins.
+
+### Building the installer
+
+There is no build step, because the plugin is what is in `plugin/`. Compile the script with
+[Inno Setup 6](https://jrsoftware.org/isdl.php):
+
+```
+"%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" installer\Nexus.PLM.OnlyOffice.Addin.iss
+```
+
+The result is `installer/Output/NexusPlmOnlyOfficeAddinSetup.exe`.
+
+### Installing it for development
+
 ```powershell
 pwsh tools/install.ps1
 ```
 
-Copies the plugin into ONLYOFFICE's **user** plugin folder — the one under Program Files needs
-elevation, and the user folder has its own `v1`, so the `../v1/plugins.js` the page loads still
-resolves.
+A convenience that does the same two things straight from a working copy. It is **not** how anybody
+else should install this: nothing user-facing may depend on a script on a developer's machine. It
+exists so a change can be tried without recompiling an installer.
 
 ## Tests
 
