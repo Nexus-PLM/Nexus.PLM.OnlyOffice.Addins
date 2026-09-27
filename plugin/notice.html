@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Nexus PLM</title>
+    <!--
+        The one thing this plugin can say on its own.
+
+        Every message the plugin raises is a Nexus toast, drawn by the tray application - the same
+        toast Word raises, so a refusal here looks like a refusal there. That leaves exactly one
+        message the tray cannot draw: that the tray is not running. This page is a plugin window
+        of our own for that case, opened by editor.js when a toast comes back unreachable, so the
+        button a user presses when nothing works does not answer with silence.
+
+        The message travels in the URL fragment: a plugin window is loaded under the editor's own
+        scheme, and a fragment is the one part of a URL no scheme handler ever sees.
+    -->
+    <script type="text/javascript" src="../v1/plugins.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+        .np-notice {
+            box-sizing: border-box;
+            height: 100%;
+            padding: 14px 16px;
+            border-left: 4px solid var(--c-text-dim, #8A9BB0);
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--c-text, #E6EDF3);
+            background: var(--c-bg, #0A1520);
+            overflow: auto;
+        }
+        .np-notice-warning { border-left-color: #D9A441; }
+        .np-notice-error   { border-left-color: #C0504D; }
+    </style>
+</head>
+<body>
+    <div id="np-notice" class="np-notice"></div>
+    <script type="text/javascript" src="notice.js"></script>
+</body>
+</html>

@@ -301,7 +301,7 @@
         function reportConnection() {
             client.health().then(function (answer) {
                 if (answer && answer.unreachable) { say(answer.error, "error"); return; }
-                editor.probe(function (seen) {
+                editor.probe(editorType, function (seen) {
                     say("Connected to Nexus PLM on " + client.baseUrl + " - " +
                         (context.signedIn ? "signed in as " + context.user : "not signed in") + ". " + seen,
                         context.signedIn ? "success" : "warning");
@@ -309,10 +309,20 @@
             });
         }
 
-        /** Say something through the tray's own toast, so it looks like it does in every host. */
+        /**
+         * Say something through the tray's own toast, so it looks like it does in every host.
+         *
+         * Unless the tray is not there to draw it. A toast the service never received is the one
+         * message that must not be lost - it is what Connection Status, About and every refused
+         * command say when the tray is closed - so that branch, and only that branch, falls back
+         * to a window of the plugin's own. Every other failure stays silent here on purpose: the
+         * service owns the dialog for its own refusals, and a second message would say it twice.
+         */
         function say(message, severity) {
             if (!message) { return; }
-            client.notify(message, severity || "info");
+            client.notify(message, severity || "info").then(function (answer) {
+                if (answer && answer.unreachable) { editor.showNotice(message, severity || "info"); }
+            });
         }
 
         return {
