@@ -4,3 +4,7 @@ dist/
 .vs/
 .idea/
 Output/
+
+# .NET build output (manifest test project)
+**/bin/
+**/obj/
