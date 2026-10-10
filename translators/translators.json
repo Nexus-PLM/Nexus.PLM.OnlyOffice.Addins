@@ -6,7 +6,7 @@
   //
   // All three drive LibreOffice headless. soffice names its output by the INPUT's basename
   // into --outdir, and the server's script runner creates its temp input and expected output
-  // with the SAME basename in the process temp folder - so "--outdir ${ENV:TEMP}" makes
+  // with the SAME basename in the process temp folder - so "--outdir ${tempdir}" makes
   // soffice write exactly the file the runner expects. LIBREOFFICE_CMD is bridged from the
   // server's LibreOfficeCmd setting and is set on prod.
   "translators": [
@@ -19,7 +19,7 @@
       "outputFileExtension": ".pdf",
       "inputFileExtension": ".xlsx",
       "command": "${ENV:LIBREOFFICE_CMD}",
-      "args": ["--headless", "--convert-to", "pdf", "--outdir", "${ENV:TEMP}", "${input}"]
+      "args": ["--headless", "--convert-to", "pdf", "--outdir", "${tempdir}", "${input}"]
     },
     {
       "key": "pptx_to_pdf",
@@ -30,7 +30,7 @@
       "outputFileExtension": ".pdf",
       "inputFileExtension": ".pptx",
       "command": "${ENV:LIBREOFFICE_CMD}",
-      "args": ["--headless", "--convert-to", "pdf", "--outdir", "${ENV:TEMP}", "${input}"]
+      "args": ["--headless", "--convert-to", "pdf", "--outdir", "${tempdir}", "${input}"]
     },
     {
       "key": "xlsx_to_csv",
@@ -41,7 +41,7 @@
       "outputFileExtension": ".csv",
       "inputFileExtension": ".xlsx",
       "command": "${ENV:LIBREOFFICE_CMD}",
-      "args": ["--headless", "--convert-to", "csv", "--outdir", "${ENV:TEMP}", "${input}"]
+      "args": ["--headless", "--convert-to", "csv", "--outdir", "${tempdir}", "${input}"]
     }
   ]
 }

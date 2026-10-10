@@ -45,7 +45,7 @@ public class OnlyOfficeManifestTests : ManifestContractTests
             Assert.Equal("--convert-to", args[1]);
             Assert.Equal(t.OutputFileExtension.TrimStart('.'), args[2]);
             Assert.Equal("--outdir", args[3]);
-            Assert.Equal("${ENV:TEMP}", args[4]);
+            Assert.Equal("${tempdir}", args[4]);
             Assert.Equal("${input}", args[5]);
             Assert.NotNull(t.InputFileExtension); // soffice picks its import filter from it
         }
