@@ -11,9 +11,12 @@ name: Build and Test
 on:
   pull_request:
     branches: [ "main", "next" ]
+  push:
+    tags: [ "v*" ]
 
 permissions:
-  contents: read
+  contents: write
+  packages: read
 
 jobs:
   build:
@@ -62,3 +65,41 @@ jobs:
         }
         process.exit(bad ? 1 : 0);
         EOF
+
+  # The server-side deliverable is the translators.json script manifest (this repo ships no
+  # .NET by design); validate it with the SDK's contract kit.
+  manifest:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+    - name: Add the Nexus-PLM package feed
+      run: >
+        dotnet nuget add source "https://nuget.pkg.github.com/Nexus-PLM/index.json"
+        --name nexus-plm
+        --username "${{ github.actor }}"
+        --password "${{ secrets.NUGET_READ_TOKEN || secrets.GITHUB_TOKEN }}"
+        --store-password-in-clear-text
+    - name: Validate the translator manifest
+      run: dotnet test Nexus.PLM.OnlyOffice.Translators.Tests/Nexus.PLM.OnlyOffice.Translators.Tests.csproj -c Release
+
+  # A v* tag attaches the translators deliverable: the manifest alone - no DLLs at all.
+  release-translators:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Zip the manifest deliverable
+      run: |
+        test -f translators/translators.json
+        ! ls translators/*.dll 2>/dev/null
+        (cd translators && zip -qr ../Nexus.PLM.OnlyOffice.Translators.zip .)
+    - name: Attach to the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release create "${GITHUB_REF_NAME}" --notes "ONLYOFFICE plugin release ${GITHUB_REF_NAME}" || true
+        gh release upload "${GITHUB_REF_NAME}" Nexus.PLM.OnlyOffice.Translators.zip --clobber

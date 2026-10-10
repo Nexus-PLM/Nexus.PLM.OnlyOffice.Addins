@@ -134,6 +134,15 @@ read. That is a prediction from how the mechanisms work, not a measurement; noth
 on 80/443/8080/8443 on the server when this was written.
 
 
+## Server-side translators
+
+`translators/translators.json` is this repo's Translation-server deliverable — script-manifest
+entries only, no .NET: `xlsx_to_pdf`, `pptx_to_pdf` and `xlsx_to_csv`, all via LibreOffice
+headless on the server. Ownership is by input format: the Office add-ins repo translates docx;
+the spreadsheet and presentation inputs live here. Deployed to `Nexus\Translators\onlyoffice\`;
+a `v*` tag attaches the zip to the GitHub release. Keys are reserved in
+`Nexus.PLM.Services/docs/translator-ownership.md`.
+
 ## No connector in this repo, on purpose
 
 ONLYOFFICE reads and writes **OOXML** — the same `.docx`, `.xlsx` and `.pptx` the Office add-ins
