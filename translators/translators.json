@@ -1,0 +1,47 @@
+{
+  // ONLYOFFICE's example translators, as a script manifest - this repo ships no .NET by
+  // design (see "No connector in this repo, on purpose" in the README; templates for OOXML
+  // live with the Office add-ins). Ownership is by INPUT format: the Office repo translates
+  // docx; the spreadsheet and presentation inputs live here.
+  //
+  // All three drive LibreOffice headless. soffice names its output by the INPUT's basename
+  // into --outdir, and the server's script runner creates its temp input and expected output
+  // with the SAME basename in the process temp folder - so "--outdir ${ENV:TEMP}" makes
+  // soffice write exactly the file the runner expects. LIBREOFFICE_CMD is bridged from the
+  // server's LibreOfficeCmd setting and is set on prod.
+  "translators": [
+    {
+      "key": "xlsx_to_pdf",
+      "label": "Excel → PDF",
+      "description": "Converts an Excel .xlsx workbook to PDF via LibreOffice headless.",
+      "inputMimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "outputMimeType": "application/pdf",
+      "outputFileExtension": ".pdf",
+      "inputFileExtension": ".xlsx",
+      "command": "${ENV:LIBREOFFICE_CMD}",
+      "args": ["--headless", "--convert-to", "pdf", "--outdir", "${ENV:TEMP}", "${input}"]
+    },
+    {
+      "key": "pptx_to_pdf",
+      "label": "PowerPoint → PDF",
+      "description": "Converts a PowerPoint .pptx presentation to PDF via LibreOffice headless.",
+      "inputMimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "outputMimeType": "application/pdf",
+      "outputFileExtension": ".pdf",
+      "inputFileExtension": ".pptx",
+      "command": "${ENV:LIBREOFFICE_CMD}",
+      "args": ["--headless", "--convert-to", "pdf", "--outdir", "${ENV:TEMP}", "${input}"]
+    },
+    {
+      "key": "xlsx_to_csv",
+      "label": "Excel → CSV",
+      "description": "Exports the first sheet of an Excel .xlsx workbook as CSV (LibreOffice's csv filter converts one sheet).",
+      "inputMimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "outputMimeType": "text/csv",
+      "outputFileExtension": ".csv",
+      "inputFileExtension": ".xlsx",
+      "command": "${ENV:LIBREOFFICE_CMD}",
+      "args": ["--headless", "--convert-to", "csv", "--outdir", "${ENV:TEMP}", "${input}"]
+    }
+  ]
+}
